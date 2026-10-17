@@ -1,0 +1,7 @@
+{
+  "name": "Science of Gifts — Product Intelligence Studio",
+  "description": "Editorial research workspace and brief engine for high-context product positioning, recipient intelligence, and gift-guide strategy.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
