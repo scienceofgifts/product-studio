@@ -19,6 +19,8 @@ import {
 } from './types';
 import { INITIAL_WRITING_GUIDELINES, INITIAL_WRITING_EXAMPLES_LIST } from './data/initialWritingGuidelines';
 import { dbService } from './services/db';
+import { syncService } from './services/syncService';
+import { getApiUrl } from './services/apiConfig';
 import { SAMPLE_PRODUCTS } from './data/sampleProducts';
 import { NavigationHeader, ActiveTab } from './components/NavigationHeader';
 import { ProductInputPanel } from './components/workspace/ProductInputPanel';
@@ -180,19 +182,25 @@ export default function App() {
 
   const handleSaveWritingGuidelines = async (updated: WritingGuidelinesSettings, updatedExamples?: ApprovedWritingExample[]) => {
     await dbService.saveWritingGuidelines(updated);
+    await syncService.notifyWritingGuidelinesUpdated(updated);
     if (updatedExamples) {
       await dbService.saveAllWritingExamples(updatedExamples);
+      for (const ex of updatedExamples) {
+        await syncService.notifyWritingExampleSaved(ex);
+      }
     }
     await refreshData();
   };
 
   const handleSaveWritingExample = async (example: ApprovedWritingExample) => {
     await dbService.saveWritingExample(example);
+    await syncService.notifyWritingExampleSaved(example);
     await refreshData();
   };
 
   const handleDeleteWritingExample = async (id: string) => {
     await dbService.deleteWritingExample(id);
+    await syncService.notifyWritingExampleDeleted(id);
     await refreshData();
   };
 
@@ -267,8 +275,13 @@ export default function App() {
       }
     });
 
+    // Subscribe to real-time Firestore sync updates
+    const unsubSync = syncService.onDataChange(() => {
+      refreshData();
+    });
+
     // Check backend health
-    fetch('/api/health')
+    fetch(getApiUrl('/api/health'))
       .then((r) => r.json())
       .then((data) => {
         setApiConnected(data.hasApiKey);
@@ -276,6 +289,10 @@ export default function App() {
       .catch(() => {
         setApiConnected(false);
       });
+
+    return () => {
+      unsubSync();
+    };
   }, [refreshData]);
 
   // Context Profile Handlers
@@ -480,7 +497,7 @@ export default function App() {
         };
       });
 
-      const response = await fetch('/api/analyze', {
+      const response = await fetch(getApiUrl('/api/analyze'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -592,6 +609,7 @@ export default function App() {
   // Save updated Business Brain
   const handleSaveBusinessBrain = async (updated: BusinessBrainData) => {
     await dbService.saveBusinessBrain(updated);
+    await syncService.notifyBrainUpdated(updated);
     await refreshData();
     showToast(`Business Brain updated to Version ${(updated.version || 1) + 1}`);
   };
@@ -599,6 +617,7 @@ export default function App() {
   // Reset Business Brain
   const handleResetBusinessBrain = async () => {
     const def = await dbService.resetBusinessBrainToDefault();
+    await syncService.notifyBrainUpdated(def);
     setBusinessBrain(def);
     showToast('Business Brain reset to initial specifications');
   };

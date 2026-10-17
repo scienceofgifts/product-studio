@@ -14,6 +14,7 @@ export interface ApprovedWritingExample {
   tags: string[];
   contentType?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface BriefQualityReport {

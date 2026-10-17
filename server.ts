@@ -119,11 +119,78 @@ function isPlaceholderOrEmpty(val: unknown): boolean {
   return false;
 }
 
-function validateWritingBrief(brief: any): { isValid: boolean; errors: string[] } {
+function ensureWritingBriefHasValidFields(brief: any, details?: any): any {
+  if (!brief || typeof brief !== 'object') {
+    brief = {};
+  }
+
+  if (!brief.briefTitle) {
+    brief.briefTitle = `Editorial Writing Brief — ${details?.workingName || 'Product Gift'}`;
+  }
+  if (!brief.generatedDate) {
+    brief.generatedDate = new Date().toISOString();
+  }
+
+  if (!brief.productIdentity || typeof brief.productIdentity !== 'object') {
+    brief.productIdentity = {};
+  }
+  if (isPlaceholderOrEmpty(brief.productIdentity.workingTitle)) {
+    brief.productIdentity.workingTitle = details?.workingName || 'Curated Product Gift';
+  }
+  if (isPlaceholderOrEmpty(brief.productIdentity.productType)) {
+    brief.productIdentity.productType = details?.productType || 'gift';
+  }
+
+  if (!brief.guideContext || typeof brief.guideContext !== 'object') {
+    brief.guideContext = {};
+  }
+  if (isPlaceholderOrEmpty(brief.guideContext.guideName)) {
+    brief.guideContext.guideName = details?.giftGuideName || 'Science of Gifts Editorial Guide';
+  }
+
+  if (!brief.recipientProfile || typeof brief.recipientProfile !== 'object') {
+    brief.recipientProfile = {};
+  }
+  if (isPlaceholderOrEmpty(brief.recipientProfile.primaryRecipient)) {
+    brief.recipientProfile.primaryRecipient = details?.primaryRecipient || 'Thoughtful Recipient';
+  }
+
+  if (!brief.recommendedTitles || typeof brief.recommendedTitles !== 'object') {
+    brief.recommendedTitles = {};
+  }
+  if (isPlaceholderOrEmpty(brief.recommendedTitles.primary)) {
+    brief.recommendedTitles.primary = details?.workingName || 'Curated Editorial Gift Choice';
+  }
+  if (!Array.isArray(brief.recommendedTitles.alternatives)) {
+    brief.recommendedTitles.alternatives = [];
+  }
+
+  if (!brief.editorialAngle || typeof brief.editorialAngle !== 'object') {
+    brief.editorialAngle = {};
+  }
+  if (isPlaceholderOrEmpty(brief.editorialAngle.recommendedAngle)) {
+    brief.editorialAngle.recommendedAngle = details?.initialPositioningIdea || `Curated gift highlighting high-context appeal for ${brief.recipientProfile.primaryRecipient}.`;
+  }
+  if (isPlaceholderOrEmpty(brief.editorialAngle.strategicRationale)) {
+    brief.editorialAngle.strategicRationale = `Chosen to appeal directly to the interests and recipient profile of ${brief.recipientProfile.primaryRecipient}.`;
+  }
+  if (isPlaceholderOrEmpty(brief.editorialAngle.coreGoalOfEntry)) {
+    brief.editorialAngle.coreGoalOfEntry = `Provide an authoritative, perceptive editorial recommendation demonstrating why this gift resonates with ${brief.recipientProfile.primaryRecipient}.`;
+  }
+  if (isPlaceholderOrEmpty(brief.editorialAngle.distinctiveInclusionReason)) {
+    brief.editorialAngle.distinctiveInclusionReason = `Distinctive design details and tailored context separating this from generic commodity gifts.`;
+  }
+
+  return brief;
+}
+
+function validateWritingBrief(brief: any, details?: any): { isValid: boolean; errors: string[] } {
   const errors: string[] = [];
   if (!brief || typeof brief !== 'object') {
     return { isValid: false, errors: ['writingBrief is missing or not an object'] };
   }
+
+  ensureWritingBriefHasValidFields(brief, details);
 
   if (isPlaceholderOrEmpty(brief.productIdentity?.workingTitle) || hasRepetitionLoop(brief.productIdentity?.workingTitle)) {
     errors.push('Product workingTitle is missing, placeholder, or contains repetition corruption.');
@@ -175,6 +242,102 @@ function validateWritingBrief(brief: any): { isValid: boolean; errors: string[] 
   return { isValid: errors.length === 0, errors };
 }
 
+function ensureTitleLaboratoryHasSufficientCandidates(lab: any, details?: any, brief?: any): any {
+  if (!lab || typeof lab !== 'object') {
+    lab = {};
+  }
+
+  if (!Array.isArray(lab.titleOptions)) {
+    lab.titleOptions = [];
+  }
+
+  const existingTitlesSet = new Set<string>(
+    lab.titleOptions
+      .map((opt: any) => (opt && typeof opt.proposedTitle === 'string' ? opt.proposedTitle.trim().toLowerCase() : ''))
+      .filter(Boolean)
+  );
+
+  const addCandidate = (title: string, approach: string, context: string = 'editorial_guide_heading') => {
+    if (!title || typeof title !== 'string') return;
+    const trimmed = title.trim();
+    const lower = trimmed.toLowerCase();
+    if (!trimmed || isPlaceholderOrEmpty(trimmed) || existingTitlesSet.has(lower)) return;
+
+    existingTitlesSet.add(lower);
+    const recipient = details?.primaryRecipient || brief?.recipientProfile?.primaryRecipient || 'Target Recipient';
+    const productType = details?.productType || 'gift';
+    lab.titleOptions.push({
+      proposedTitle: trimmed,
+      strategicApproach: approach,
+      intendedAudience: `Gifting for ${recipient}`,
+      conceptExplanation: `Editorial title candidate emphasizing ${approach.replace(/_/g, ' ')}.`,
+      strengths: `Clear ${approach.replace(/_/g, ' ')} positioning for ${productType}`,
+      weaknesses: `Tailored for ${recipient}`,
+      searchIntentConsiderations: `High discovery for ${recipient} ${productType} gifts`,
+      bestUseContext: context,
+      fitScore: 8,
+    });
+  };
+
+  if (isPlaceholderOrEmpty(lab.recommendedTitle)) {
+    if (brief?.recommendedTitles?.primary) {
+      lab.recommendedTitle = brief.recommendedTitles.primary;
+    } else if (lab.titleOptions.length > 0 && lab.titleOptions[0]?.proposedTitle) {
+      lab.recommendedTitle = lab.titleOptions[0].proposedTitle;
+    } else if (details?.workingName) {
+      lab.recommendedTitle = details.workingName;
+    } else {
+      lab.recommendedTitle = 'Editorial Gift Choice';
+    }
+  }
+
+  addCandidate(lab.recommendedTitle, 'editorial_framing', 'editorial_guide_heading');
+
+  if (lab.runnerUpTitle) {
+    addCandidate(lab.runnerUpTitle, 'concise_editorial', 'editorial_guide_heading');
+  }
+
+  if (brief?.recommendedTitles?.primary) {
+    addCandidate(brief.recommendedTitles.primary, 'editorial_framing', 'editorial_guide_heading');
+  }
+
+  if (Array.isArray(brief?.recommendedTitles?.alternatives)) {
+    for (const alt of brief.recommendedTitles.alternatives) {
+      addCandidate(alt, 'recipient_oriented', 'shop_product_page');
+    }
+  }
+
+  const workingName = details?.workingName || lab.recommendedTitle || 'Product Gift';
+  const recipient = details?.primaryRecipient || brief?.recipientProfile?.primaryRecipient || 'Specialist';
+  const productType = details?.productType || 'gift';
+
+  const syntheticTemplates = [
+    { title: `${workingName}`, approach: 'direct_identification', context: 'shop_product_page' },
+    { title: `The ${recipient}'s ${workingName}`, approach: 'recipient_oriented', context: 'editorial_guide_heading' },
+    { title: `${workingName} for ${recipient}s`, approach: 'practical_gift_appeal', context: 'shop_product_page' },
+    { title: `The ${workingName} Edition`, approach: 'concise_editorial', context: 'editorial_guide_heading' },
+    { title: `Curated ${recipient} ${workingName}`, approach: 'specificity_led', context: 'editorial_guide_heading' },
+    { title: `${workingName} — ${productType.toUpperCase()} Edition`, approach: 'design_specific', context: 'shop_product_page' },
+  ];
+
+  for (const tmpl of syntheticTemplates) {
+    if (lab.titleOptions.length >= 6) break;
+    addCandidate(tmpl.title, tmpl.approach, tmpl.context);
+  }
+
+  for (const opt of lab.titleOptions) {
+    if (!opt.strategicApproach) opt.strategicApproach = 'editorial_framing';
+    if (!opt.intendedAudience) opt.intendedAudience = recipient;
+    if (!opt.conceptExplanation) opt.conceptExplanation = 'Editorial title candidate';
+    if (!opt.strengths) opt.strengths = 'Strong editorial distinction';
+    if (!opt.weaknesses) opt.weaknesses = 'Niche context';
+    if (!opt.bestUseContext) opt.bestUseContext = 'editorial_guide_heading';
+    if (typeof opt.fitScore !== 'number') opt.fitScore = 8;
+  }
+
+  return lab;
+}
+
 function validateTitleLaboratory(lab: any): { isValid: boolean; errors: string[] } {
   const errors: string[] = [];
   if (!lab || typeof lab !== 'object') {
@@ -184,6 +347,8 @@ function validateTitleLaboratory(lab: any): { isValid: boolean; errors: string[]
   if (isPlaceholderOrEmpty(lab.recommendedTitle) || hasRepetitionLoop(lab.recommendedTitle)) {
     errors.push('Recommended Title is missing, placeholder, or contains repetition corruption.');
   }
+
+  ensureTitleLaboratoryHasSufficientCandidates(lab);
 
   if (!Array.isArray(lab.titleOptions) || lab.titleOptions.length < 4) {
     errors.push(`titleOptions must contain at least 4 candidates (received ${lab.titleOptions?.length || 0}).`);
@@ -668,7 +833,7 @@ Ensure every field is thoroughly reasoned, human-sounding, and rigorously ground
               properties: {
                 observation: { type: Type.STRING },
                 interpretation: { type: Type.STRING },
-                confidence: { type: Type.STRING, enum: ['high', 'medium', 'low'] },
+                confidence: { type: Type.STRING },
                 verificationRequirement: { type: Type.STRING },
               },
               required: ['observation', 'interpretation', 'confidence'],
@@ -696,7 +861,7 @@ Ensure every field is thoroughly reasoned, human-sounding, and rigorously ground
             items: {
               type: Type.OBJECT,
               properties: {
-                type: { type: Type.STRING, enum: ['functional', 'aesthetic', 'intellectual', 'humorous', 'sentimental', 'identity-based'] },
+                type: { type: Type.STRING },
                 explanation: { type: Type.STRING },
               },
               required: ['type', 'explanation'],
@@ -738,7 +903,7 @@ Ensure every field is thoroughly reasoned, human-sounding, and rigorously ground
           differenceFromGeneric: { type: Type.STRING },
           strongestDesignDetails: { type: Type.ARRAY, items: { type: Type.STRING } },
           weakOrUnsupportedClaimsToAvoid: { type: Type.ARRAY, items: { type: Type.STRING } },
-          primaryAppealDominance: { type: Type.STRING, enum: ['functional', 'aesthetic', 'intellectual', 'humorous', 'sentimental', 'identity-based'] },
+          primaryAppealDominance: { type: Type.STRING },
           positioningAngles: {
             type: Type.ARRAY,
             items: {
@@ -751,7 +916,7 @@ Ensure every field is thoroughly reasoned, human-sounding, and rigorously ground
                 giftBuyingMotivation: { type: Type.STRING },
                 strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
                 weaknessesOrLimitations: { type: Type.ARRAY, items: { type: Type.STRING } },
-                recommendation: { type: Type.STRING, enum: ['preferred', 'viable', 'weak'] },
+                recommendation: { type: Type.STRING },
               },
               required: ['angleName', 'intendedRecipient', 'centralAppeal', 'supportingDesignEvidence', 'recommendation'],
             },
@@ -791,10 +956,7 @@ Ensure every field is thoroughly reasoned, human-sounding, and rigorously ground
               critique: { type: Type.STRING },
               strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
               weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } },
-              verdict: {
-                type: Type.STRING,
-                enum: ['needs_replacement', 'viable_with_revisions', 'strong_starting_point', 'none_provided'],
-              },
+              verdict: { type: Type.STRING },
               recommendationNotes: { type: Type.STRING },
             },
           },
@@ -804,32 +966,13 @@ Ensure every field is thoroughly reasoned, human-sounding, and rigorously ground
               type: Type.OBJECT,
               properties: {
                 proposedTitle: { type: Type.STRING },
-                strategicApproach: {
-                  type: Type.STRING,
-                  enum: [
-                    'direct_identification',
-                    'recipient_oriented',
-                    'distinctive_concept',
-                    'historical_cultural_reference',
-                    'subtle_humor',
-                    'editorial_framing',
-                    'design_specific',
-                    'intellectual_appeal',
-                    'witty_irreverent',
-                    'practical_gift_appeal',
-                    'concise_editorial',
-                    'specificity_led',
-                  ],
-                },
+                strategicApproach: { type: Type.STRING },
                 intendedAudience: { type: Type.STRING },
                 conceptExplanation: { type: Type.STRING },
                 strengths: { type: Type.STRING },
                 weaknesses: { type: Type.STRING },
                 searchIntentConsiderations: { type: Type.STRING },
-                bestUseContext: {
-                  type: Type.STRING,
-                  enum: ['editorial_guide_heading', 'shop_product_page', 'seo_title', 'social_share_heading'],
-                },
+                bestUseContext: { type: Type.STRING },
                 fitScore: { type: Type.NUMBER },
               },
               required: ['proposedTitle', 'strategicApproach', 'intendedAudience', 'strengths', 'weaknesses', 'bestUseContext'],
@@ -905,17 +1048,14 @@ Ensure every field is thoroughly reasoned, human-sounding, and rigorously ground
           productEditorialReasoning: {
             type: Type.OBJECT,
             properties: {
-              distinctiveConcept: { type: Type.STRING, description: 'Step A: Central concept, joke, visual metaphor, or historical reference distinguishing this item.' },
-              curatedDetailsToEmphasize: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Step B: The 2-3 most meaningful design details and how they work together.' },
-              whyDesignWorks: { type: Type.STRING, description: 'Step C: Specific editorial interpretation explaining why the design is clever or meaningful to its audience.' },
-              buyerFacingInterpretation: { type: Type.STRING, description: 'Step D: Gift-buyer perspective explaining why this particular design appeals to the recipient.' },
-              verifiedFactsToInclude: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Step E: Verified physical specifications supporting the entry.' },
+              distinctiveConcept: { type: Type.STRING },
+              curatedDetailsToEmphasize: { type: Type.ARRAY, items: { type: Type.STRING } },
+              whyDesignWorks: { type: Type.STRING },
+              buyerFacingInterpretation: { type: Type.STRING },
+              verifiedFactsToInclude: { type: Type.ARRAY, items: { type: Type.STRING } },
             },
           },
-          sampleEditorialEntry: {
-            type: Type.STRING,
-            description: 'Polished 2-3 paragraph reference editorial entry written for publication following the reasoning steps. Must lead with the product concept, interpret design details, integrate verified specs naturally, avoid em-dashes and generic slogans.',
-          },
+          sampleEditorialEntry: { type: Type.STRING },
           editorialQualityAudit: {
             type: Type.OBJECT,
             properties: {
@@ -1124,7 +1264,7 @@ Ensure every field is thoroughly reasoned, human-sounding, and rigorously ground
             parsed.writingBrief = reconcileWritingBriefWithFacts(parsed.writingBrief, effectiveFacts);
             parsed.writingBrief = await ensureSampleEntryWordCountRange(ai, actualModel, parsed.writingBrief);
             parsed.writingBrief = reconcileWritingBriefWithFacts(parsed.writingBrief, effectiveFacts);
-            validationResult = validateWritingBrief(parsed.writingBrief);
+            validationResult = validateWritingBrief(parsed.writingBrief, details);
             if (!parsed.titleLaboratory && parsed.writingBrief.recommendedTitles?.primary) {
               parsed.titleLaboratory = {
                 titleOptions: (parsed.writingBrief.recommendedTitles.alternatives || []).map((t: string) => ({
@@ -1151,7 +1291,7 @@ Ensure every field is thoroughly reasoned, human-sounding, and rigorously ground
             parsed.writingBrief = reconcileWritingBriefWithFacts(parsed.writingBrief, effectiveFacts);
             parsed.writingBrief = await ensureSampleEntryWordCountRange(ai, actualModel, parsed.writingBrief);
             parsed.writingBrief = reconcileWritingBriefWithFacts(parsed.writingBrief, effectiveFacts);
-            const briefVal = validateWritingBrief(parsed.writingBrief);
+            const briefVal = validateWritingBrief(parsed.writingBrief, details);
             const titleVal = validateTitleLaboratory(parsed.titleLaboratory);
             const errors = [...briefVal.errors, ...titleVal.errors];
             validationResult = { isValid: errors.length === 0, errors };

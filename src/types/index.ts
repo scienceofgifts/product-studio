@@ -348,6 +348,7 @@ export * from './similarity';
 export interface BusinessBrainData {
   version: number;
   lastUpdated: string;
+  updatedAt?: string;
   businessPositioning: string;
   websiteShopStructure: string;
   targetAudiences: string;

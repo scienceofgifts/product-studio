@@ -24,6 +24,7 @@ import {
 import { downloadFile } from '../../utils/exportUtils';
 import { validateBusinessBrainImport, BusinessBrainDiffSummary } from '../../utils/businessBrainImportExport';
 import { ImportBusinessBrainModal } from '../modals/ImportBusinessBrainModal';
+import { SyncStatusWidget } from '../common/SyncStatusWidget';
 
 interface BusinessBrainViewProps {
   brainData: BusinessBrainData;
@@ -255,6 +256,8 @@ export const BusinessBrainView: React.FC<BusinessBrainViewProps> = ({
           </button>
         </div>
       </div>
+
+      <SyncStatusWidget />
 
       {/* Error Alert */}
       {importError && (

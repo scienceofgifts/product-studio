@@ -1,0 +1,60 @@
+{
+  "entities": {
+    "BusinessBrain": {
+      "title": "BusinessBrain",
+      "description": "User brand identity and business brain settings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "businessName": { "type": "string" },
+        "brandValues": { "type": "string" },
+        "targetAudience": { "type": "string" },
+        "positioningStatement": { "type": "string" },
+        "brandVoice": { "type": "string" },
+        "defaultInstructions": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "WritingGuidelines": {
+      "title": "WritingGuidelines",
+      "description": "User writing style guidelines and rules",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "voiceAndTone": { "type": "string" },
+        "doRules": { "type": "string" },
+        "dontRules": { "type": "string" },
+        "formattingRules": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "ApprovedWritingExample": {
+      "title": "ApprovedWritingExample",
+      "description": "User approved writing style examples",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "deleted": { "type": "boolean" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}/settings/business_brain": {
+      "schema": "BusinessBrain",
+      "description": "User business brain settings document"
+    },
+    "/users/{userId}/settings/writing_guidelines": {
+      "schema": "WritingGuidelines",
+      "description": "User writing guidelines document"
+    },
+    "/users/{userId}/writing_examples/{exampleId}": {
+      "schema": "ApprovedWritingExample",
+      "description": "User approved writing examples collection"
+    }
+  }
+}

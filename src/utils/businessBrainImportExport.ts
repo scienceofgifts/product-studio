@@ -18,7 +18,7 @@ export interface BusinessBrainValidationResult {
   diffSummary?: BusinessBrainDiffSummary;
 }
 
-export const BUSINESS_BRAIN_FIELD_LABELS: Record<keyof Omit<BusinessBrainData, 'version' | 'lastUpdated'>, string> = {
+export const BUSINESS_BRAIN_FIELD_LABELS: Record<keyof Omit<BusinessBrainData, 'version' | 'lastUpdated' | 'updatedAt'>, string> = {
   businessPositioning: '1. Business Positioning & Philosophy',
   websiteShopStructure: '2. Website & Shop Structure',
   targetAudiences: '3. Target Audiences & Sub-Niche Distinctions',
@@ -66,7 +66,7 @@ export function validateBusinessBrainImport(
     ? importedObj.businessBrain
     : importedObj;
 
-  const validKeys: Array<keyof Omit<BusinessBrainData, 'version' | 'lastUpdated'>> = [
+  const validKeys: Array<keyof Omit<BusinessBrainData, 'version' | 'lastUpdated' | 'updatedAt'>> = [
     'businessPositioning',
     'websiteShopStructure',
     'targetAudiences',

@@ -23,7 +23,9 @@ import {
 } from 'lucide-react';
 import { SUPPORTED_MODELS, DEFAULT_MODEL_ID, PREFERRED_FALLBACK_MODEL_ID, ModelDefinition } from '../../config/models';
 import { WritingGuidelinesSettings, ApprovedWritingExample } from '../../types/writingGuidelines';
+import { getApiUrl } from '../../services/apiConfig';
 import { WritingGuidelinesSettingsView } from './WritingGuidelinesSettingsView';
+import { SyncStatusWidget } from '../common/SyncStatusWidget';
 
 interface SettingsViewProps {
   currentModel: string;
@@ -83,7 +85,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const checkServerHealth = async () => {
     setIsCheckingHealth(true);
     try {
-      const res = await fetch('/api/health');
+      const res = await fetch(getApiUrl('/api/health'));
       if (res.ok) {
         const data = await res.json();
         setHealthStatus(data);
@@ -91,7 +93,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         setHealthStatus({ error: `Server responded with status ${res.status}` });
       }
 
-      const modelsRes = await fetch('/api/models');
+      const modelsRes = await fetch(getApiUrl('/api/models'));
       if (modelsRes.ok) {
         const modelsData = await modelsRes.json();
         if (modelsData.verification?.results && Object.keys(modelsData.verification.results).length > 0) {
@@ -109,7 +111,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleVerifyModels = async () => {
     setIsVerifying(true);
     try {
-      const res = await fetch('/api/models/verify', { method: 'POST' });
+      const res = await fetch(getApiUrl('/api/models/verify'), { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
         setVerificationResults(data.results);
@@ -168,6 +170,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <span>Writing Guidelines & Style Profiles</span>
         </button>
       </div>
+
+      <SyncStatusWidget />
 
       {settingsTab === 'guidelines' ? (
         <WritingGuidelinesSettingsView

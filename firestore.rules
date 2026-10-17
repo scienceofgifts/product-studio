@@ -1,0 +1,32 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Global default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // User-scoped documents and subcollections
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      match /settings/{settingId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /writing_examples/{exampleId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+  }
+}

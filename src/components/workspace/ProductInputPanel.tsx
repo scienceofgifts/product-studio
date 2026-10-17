@@ -28,6 +28,7 @@ import { ProductDetailsInput, ProductType, AnalysisMode, GiftGuide, ContextProfi
 import { processImageUpload } from '../../utils/imageUtils';
 import { SAMPLE_PRODUCTS } from '../../data/sampleProducts';
 import { ContextProfileBar } from './ContextProfileBar';
+import { getApiUrl } from '../../services/apiConfig';
 import { extractSharedContext } from '../../utils/contextUtils';
 import { SUPPORTED_MODELS, getModelDefinition } from '../../config/models';
 
@@ -117,7 +118,7 @@ export const ProductInputPanel: React.FC<ProductInputPanelProps> = ({
     setExtractError(null);
 
     try {
-      const response = await fetch('/api/extract-url', {
+      const response = await fetch(getApiUrl('/api/extract-url'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: details.productUrl.trim() })
