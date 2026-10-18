@@ -27,7 +27,7 @@ import {
 } from '../../types';
 import { compareProducts, getComparisonKey } from '../../services/similarityEngine';
 import { dbService } from '../../services/db';
-import { getApiUrl } from '../../services/apiConfig';
+import { getApiUrl, fetchApi } from '../../services/apiConfig';
 
 interface ProductComparisonModalProps {
   productA: ProductRecord;
@@ -84,7 +84,7 @@ export const ProductComparisonModal: React.FC<ProductComparisonModalProps> = ({
     setIsLoadingAI(true);
     setAiError(null);
     try {
-      const res = await fetch(getApiUrl('/api/compare'), {
+      const res = await fetchApi('/api/compare', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

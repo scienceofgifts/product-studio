@@ -41,7 +41,7 @@ async function runTests() {
 
   // Test 2: CORS Preflight OPTIONS
   console.log('Test 2: CORS Preflight OPTIONS handling...');
-  const optionsReq = new Request('https://designdna-api.scienceofgifts.workers.dev/api/analyze', {
+  const optionsReq = new Request('https://product-studio-api.scienceofgifts.workers.dev/api/analyze', {
     method: 'OPTIONS',
     headers: {
       'Origin': 'https://scienceofgifts.pages.dev',
@@ -57,7 +57,7 @@ async function runTests() {
 
   // Test 3: GET /api/health
   console.log('Test 3: GET /api/health...');
-  const healthReq = new Request('https://designdna-api.scienceofgifts.workers.dev/api/health', { method: 'GET' });
+  const healthReq = new Request('https://product-studio-api.scienceofgifts.workers.dev/api/health', { method: 'GET' });
   const healthRes = await worker.fetch(healthReq, { GEMINI_API_KEY: 'mock-key' });
   assert.strictEqual(healthRes.status, 200);
   const healthData: any = await healthRes.json();
@@ -68,7 +68,7 @@ async function runTests() {
 
   // Test 4: GET /api/models
   console.log('Test 4: GET /api/models...');
-  const modelsReq = new Request('https://designdna-api.scienceofgifts.workers.dev/api/models', { method: 'GET' });
+  const modelsReq = new Request('https://product-studio-api.scienceofgifts.workers.dev/api/models', { method: 'GET' });
   const modelsRes = await worker.fetch(modelsReq, {});
   assert.strictEqual(modelsRes.status, 200);
   const modelsData: any = await modelsRes.json();
@@ -78,7 +78,7 @@ async function runTests() {
 
   // Test 5: Missing API Key Protection
   console.log('Test 5: Missing API Key error on protected routes...');
-  const protectedReq = new Request('https://designdna-api.scienceofgifts.workers.dev/api/analyze', {
+  const protectedReq = new Request('https://product-studio-api.scienceofgifts.workers.dev/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mode: 'full' }),
@@ -94,7 +94,7 @@ async function runTests() {
   const envWithKey: Env = { GEMINI_API_KEY: 'test-key' };
 
   // /api/analyze without payload
-  const emptyAnalyzeReq = new Request('https://designdna-api.scienceofgifts.workers.dev/api/analyze', {
+  const emptyAnalyzeReq = new Request('https://product-studio-api.scienceofgifts.workers.dev/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({}),
@@ -103,7 +103,7 @@ async function runTests() {
   assert.strictEqual(emptyAnalyzeRes.status, 400);
 
   // /api/extract-url without url
-  const emptyExtractReq = new Request('https://designdna-api.scienceofgifts.workers.dev/api/extract-url', {
+  const emptyExtractReq = new Request('https://product-studio-api.scienceofgifts.workers.dev/api/extract-url', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({}),
@@ -112,7 +112,7 @@ async function runTests() {
   assert.strictEqual(emptyExtractRes.status, 400);
 
   // /api/compare without productA/productB
-  const emptyCompareReq = new Request('https://designdna-api.scienceofgifts.workers.dev/api/compare', {
+  const emptyCompareReq = new Request('https://product-studio-api.scienceofgifts.workers.dev/api/compare', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({}),
@@ -121,7 +121,7 @@ async function runTests() {
   assert.strictEqual(emptyCompareRes.status, 400);
 
   // /api/title-laboratory/generate-more without details
-  const emptyTitlesReq = new Request('https://designdna-api.scienceofgifts.workers.dev/api/title-laboratory/generate-more', {
+  const emptyTitlesReq = new Request('https://product-studio-api.scienceofgifts.workers.dev/api/title-laboratory/generate-more', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({}),
@@ -133,7 +133,7 @@ async function runTests() {
 
   // Test 7: 404 for unknown endpoints
   console.log('Test 7: Unknown route 404 handling...');
-  const unknownReq = new Request('https://designdna-api.scienceofgifts.workers.dev/api/unknown-endpoint', {
+  const unknownReq = new Request('https://product-studio-api.scienceofgifts.workers.dev/api/unknown-endpoint', {
     method: 'GET',
   });
   const unknownRes = await worker.fetch(unknownReq, envWithKey);
