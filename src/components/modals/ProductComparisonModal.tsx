@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { getApiUrl } from '../../config/api';
 import {
   X,
   Scale,
@@ -83,7 +84,7 @@ export const ProductComparisonModal: React.FC<ProductComparisonModalProps> = ({
     setIsLoadingAI(true);
     setAiError(null);
     try {
-      const res = await fetch('/api/compare', {
+      const res = await fetch(getApiUrl('/api/compare'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

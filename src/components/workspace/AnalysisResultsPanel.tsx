@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { getApiUrl } from '../../config/api';
 import {
   StructuredAnalysisResult,
   ProductRecord,
@@ -247,7 +248,7 @@ export const AnalysisResultsPanel: React.FC<AnalysisResultsPanelProps> = ({
         ...(analysis.titleLaboratory?.titleOptions || []).map((t) => t.proposedTitle),
         ...extraTitles.map((t) => t.proposedTitle)
       ];
-      const res = await fetch('/api/title-laboratory/generate-more', {
+      const res = await fetch(getApiUrl('/api/title-laboratory/generate-more'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
