@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "Science of Gifts — Product Intelligence Studio",
+  "short_name": "Gift Studio",
+  "description": "Editorial research workspace and brief engine for high-context product positioning, recipient intelligence, and gift-guide strategy.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FBF9F5",
+  "theme_color": "#1E3A8A",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
