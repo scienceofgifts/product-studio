@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 import { SUPPORTED_MODELS, DEFAULT_MODEL_ID, PREFERRED_FALLBACK_MODEL_ID, ModelDefinition } from '../../config/models';
 import { WritingGuidelinesSettings, ApprovedWritingExample } from '../../types/writingGuidelines';
-import { getApiUrl, fetchApi } from '../../services/apiConfig';
 import { WritingGuidelinesSettingsView } from './WritingGuidelinesSettingsView';
 import { SyncStatusWidget } from '../common/SyncStatusWidget';
 
@@ -85,7 +84,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const checkServerHealth = async () => {
     setIsCheckingHealth(true);
     try {
-      const res = await fetchApi('/api/health');
+      const res = await fetch('/api/health');
       if (res.ok) {
         const data = await res.json();
         setHealthStatus(data);
@@ -93,7 +92,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         setHealthStatus({ error: `Server responded with status ${res.status}` });
       }
 
-      const modelsRes = await fetchApi('/api/models');
+      const modelsRes = await fetch('/api/models');
       if (modelsRes.ok) {
         const modelsData = await modelsRes.json();
         if (modelsData.verification?.results && Object.keys(modelsData.verification.results).length > 0) {
@@ -111,7 +110,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleVerifyModels = async () => {
     setIsVerifying(true);
     try {
-      const res = await fetchApi('/api/models/verify', { method: 'POST' });
+      const res = await fetch('/api/models/verify', { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
         setVerificationResults(data.results);

@@ -20,7 +20,6 @@ import {
 import { INITIAL_WRITING_GUIDELINES, INITIAL_WRITING_EXAMPLES_LIST } from './data/initialWritingGuidelines';
 import { dbService } from './services/db';
 import { syncService } from './services/syncService';
-import { getApiUrl, fetchApi } from './services/apiConfig';
 import { SAMPLE_PRODUCTS } from './data/sampleProducts';
 import { NavigationHeader, ActiveTab } from './components/NavigationHeader';
 import { ProductInputPanel } from './components/workspace/ProductInputPanel';
@@ -281,7 +280,7 @@ export default function App() {
     });
 
     // Check backend health
-    fetchApi('/api/health')
+    fetch('/api/health')
       .then((r) => r.json())
       .then((data) => {
         setApiConnected(data.hasApiKey);
@@ -497,7 +496,7 @@ export default function App() {
         };
       });
 
-      const response = await fetchApi('/api/analyze', {
+      const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
