@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
+    "deploy:worker": "wrangler deploy --config worker/wrangler.json",
     "test": "tsx tests/productFacts.test.ts && tsx tests/writingGuidelinesImportExport.test.ts && tsx tests/businessBrainImportExport.test.ts && tsx tests/writingGuidelinesDeletion.test.ts && tsx tests/editorialIntelligence.test.ts && tsx tests/giftGuideDeletionAndExampleEditing.test.ts && tsx tests/titleLaboratoryUi.test.ts && tsx tests/worker.test.ts"
   },
   "dependencies": {
