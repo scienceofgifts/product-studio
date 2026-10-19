@@ -1,23 +1,8 @@
-# Dependencies
 node_modules/
-
-# Build outputs
 build/
 dist/
-
-# Wrangler / Cloudflare Worker local state
-.wrangler/
-worker/.wrangler/
-worker/.dev.vars
-
-# Local environment files
-.env
-.env.local
-.env.development
-.env.production
-.env*.local
-
-# Logs and system caches
-*.log
-.DS_Store
 coverage/
+.DS_Store
+*.log
+.env*
+!.env.example

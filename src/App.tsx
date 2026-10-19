@@ -37,7 +37,6 @@ import { ProductComparisonModal } from './components/modals/ProductComparisonMod
 import { downloadFile } from './utils/exportUtils';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { DEFAULT_MODEL_ID, resolveModelId } from './config/models';
-import { getApiUrl } from './config/api';
 import { findRelevantCatalogueMatches } from './services/similarityEngine';
 import {
   extractSharedContext,
@@ -281,7 +280,7 @@ export default function App() {
     });
 
     // Check backend health
-    fetch(getApiUrl('/api/health'))
+    fetch('/api/health')
       .then((r) => r.json())
       .then((data) => {
         setApiConnected(data.hasApiKey);
@@ -497,7 +496,7 @@ export default function App() {
         };
       });
 
-      const response = await fetch(getApiUrl('/api/analyze'), {
+      const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

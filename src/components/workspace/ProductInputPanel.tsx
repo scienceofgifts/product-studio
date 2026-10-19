@@ -4,7 +4,6 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { getApiUrl } from '../../config/api';
 import {
   Upload,
   Image as ImageIcon,
@@ -118,7 +117,7 @@ export const ProductInputPanel: React.FC<ProductInputPanelProps> = ({
     setExtractError(null);
 
     try {
-      const response = await fetch(getApiUrl('/api/extract-url'), {
+      const response = await fetch('/api/extract-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: details.productUrl.trim() })
