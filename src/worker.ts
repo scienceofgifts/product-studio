@@ -2,7 +2,7 @@
  * Cloudflare Worker Handler for Science of Gifts API
  *
  * Runs on Cloudflare Workers with Assets (run_worker_first: ["/api/*"]).
- * Handles all backend API endpoints and Gemini AI integrations.
+ * Handles all backend API endpoints and Gemini AI integrations with full debug tracking.
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
@@ -77,7 +77,7 @@ function jsonResponse(data: any, status = 200): Response {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   });
 }
@@ -192,8 +192,14 @@ export default {
 
     // 5. POST /api/analyze
     if (path === '/api/analyze' && method === 'POST') {
+      // 1. Initialize Debug Tracker
+      const debugTracker: any = { steps: [], start: Date.now() };
+      debugTracker.steps.push("Entered analyze block");
+
       try {
         const reqBody: any = await request.json().catch(() => ({}));
+        debugTracker.steps.push("Parsed JSON request body");
+
         const {
           imageBase64,
           imageMimeType,
@@ -207,23 +213,32 @@ export default {
         } = reqBody;
 
         if (!imageBase64 && !details) {
-          return jsonResponse({ error: 'Either a product image or product details are required.' }, 400);
+          debugTracker.steps.push("Validation failed: no image or details");
+          return jsonResponse({
+            error: 'Either a product image or product details are required.',
+            debug: debugTracker,
+          }, 400);
         }
 
+        // 4. Resolve and Log effectiveFacts
         let effectiveFacts = clientFacts || details?.extractedFacts;
         if (!effectiveFacts && details?.productUrl && details.productUrl.startsWith('http')) {
           try {
+            debugTracker.steps.push("Fetching product facts from URL");
             effectiveFacts = await fetchAndExtractProductFacts(details.productUrl);
-          } catch (e) {
+            debugTracker.steps.push("Successfully fetched facts from URL");
+          } catch (e: any) {
+            debugTracker.steps.push(`Auto-fetch facts warning: ${e.message}`);
             console.warn('Auto-fetch facts on server failed:', e);
           }
         }
 
-        // 4. Log the effectiveFacts
+        debugTracker.effectiveFacts = effectiveFacts;
         console.log("Effective Facts for Prompt:", effectiveFacts);
 
         const productFactsPrompt = formatProductFactsForWriter(effectiveFacts);
         const ai = getGeminiClient(apiKey);
+        debugTracker.steps.push("Initialized Gemini client");
 
         const writingGuidelinesContext = writingGuidelines ? `
 ACTIVE WRITING GUIDELINES & STYLE PROFILES:
@@ -277,8 +292,10 @@ ${baseProductPrompt}
               data: cleanBase64,
             },
           });
+          debugTracker.steps.push(`Prepared inline image base64 (${cleanBase64.length} chars)`);
         }
         contentsParts.push({ text: promptText });
+        debugTracker.steps.push("Constructed prompt contents");
 
         const requestedModel = modelName || PREFERRED_DEFAULT_MODEL;
         let response: any = null;
@@ -288,9 +305,12 @@ ${baseProductPrompt}
         let parsedResult: any = null;
 
         while (attempt <= maxRetries && !parsedResult) {
+          const targetModel = attempt === 1 ? requestedModel : PREFERRED_FALLBACK_MODEL;
+          debugTracker.steps.push(`Attempt ${attempt}/${maxRetries} starting on model ${targetModel}`);
+
+          // 3. Log the Gemini Attempt specifically
           try {
-            const targetModel = attempt === 1 ? requestedModel : PREFERRED_FALLBACK_MODEL;
-            console.log(`[Attempt ${attempt}/${maxRetries}] Requesting Gemini model: ${targetModel}`);
+            console.log(`[Attempt ${attempt}/${maxRetries}] Calling Gemini model: ${targetModel}`);
             response = await ai.models.generateContent({
               model: targetModel,
               contents: contentsParts,
@@ -302,8 +322,9 @@ ${baseProductPrompt}
             });
 
             const responseText = response?.text || '';
+            debugTracker.steps.push(`Received response string (length: ${responseText.length})`);
 
-            // 1. Log the Raw Gemini Response
+            // 1. Log Raw Gemini Response
             console.log("RAW GEMINI RESPONSE:", responseText);
 
             if (!responseText || !responseText.trim()) {
@@ -313,45 +334,61 @@ ${baseProductPrompt}
             // 2. Log JSON Parse Errors
             try {
               parsedResult = JSON.parse(responseText);
+              debugTracker.steps.push("Successfully parsed Gemini response as JSON");
             } catch (parseError: any) {
               console.error("JSON PARSE ERROR:", parseError, "Raw text snippet:", responseText.slice(0, 200));
+              debugTracker.parseError = parseError.message;
+              debugTracker.rawTextSnippet = responseText.slice(0, 200);
               throw new Error(`Failed to parse JSON response from Gemini model: ${parseError.message}`);
             }
 
-            // Basic validation check on parsedResult
             if (!parsedResult || typeof parsedResult !== 'object' || Object.keys(parsedResult).length === 0) {
               console.error("VALIDATION ERROR: parsedResult is empty or not an object.", parsedResult);
+              debugTracker.validationError = "Empty or invalid object returned";
               throw new Error("Gemini returned an empty or invalid JSON object.");
             }
 
           } catch (err: any) {
             console.warn(`Attempt ${attempt} failed:`, err.message || err);
+            debugTracker.geminiError = err.message || String(err);
             lastError = err;
             attempt++;
           }
         }
 
-        // 3. Strict Failure on Retries
+        // 4. Strict Loop Exit Check
         if (!parsedResult) {
-          const failureMsg = lastError?.message || "Failed to generate valid analysis from Gemini after maximum retries.";
+          debugTracker.steps.push("Loop exited without valid parsedResult");
+          debugTracker.elapsedMs = Date.now() - debugTracker.start;
+          const failureMsg = lastError?.message || "Validation failed after retries";
           console.error("STRICT FAILURE ON RETRIES:", failureMsg);
           return jsonResponse({
             success: false,
             error: failureMsg,
-            details: lastError?.stack || undefined,
+            debug: debugTracker,
+            validationErrors: [failureMsg],
           }, 500);
         }
+
+        // 6. Success Response with debugTracker
+        debugTracker.steps.push("Analysis completed successfully");
+        debugTracker.elapsedMs = Date.now() - debugTracker.start;
 
         return jsonResponse({
           success: true,
           result: parsedResult,
+          debug: debugTracker,
         });
+
       } catch (err: any) {
+        // 5. Global Catch Block
+        debugTracker.steps.push(`Global catch triggered: ${err.message}`);
+        debugTracker.elapsedMs = Date.now() - debugTracker.start;
         console.error('Analysis endpoint error:', err);
         return jsonResponse({
-          success: false,
           error: err.message || 'Failed to execute product analysis.',
-          details: err.stack,
+          stack: err.stack,
+          debug: debugTracker,
         }, 500);
       }
     }
