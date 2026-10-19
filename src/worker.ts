@@ -219,6 +219,9 @@ export default {
           }
         }
 
+        // 4. Log the effectiveFacts
+        console.log("Effective Facts for Prompt:", effectiveFacts);
+
         const productFactsPrompt = formatProductFactsForWriter(effectiveFacts);
         const ai = getGeminiClient(apiKey);
 
@@ -278,21 +281,18 @@ ${baseProductPrompt}
         contentsParts.push({ text: promptText });
 
         const requestedModel = modelName || PREFERRED_DEFAULT_MODEL;
-        let response;
-        try {
-          response = await ai.models.generateContent({
-            model: requestedModel,
-            contents: contentsParts,
-            config: {
-              systemInstruction,
-              responseMimeType: 'application/json',
-              temperature: 0.3,
-            },
-          });
-        } catch (err: any) {
-          if (isModelAvailabilityError(err)) {
+        let response: any = null;
+        let attempt = 1;
+        const maxRetries = 2;
+        let lastError: Error | null = null;
+        let parsedResult: any = null;
+
+        while (attempt <= maxRetries && !parsedResult) {
+          try {
+            const targetModel = attempt === 1 ? requestedModel : PREFERRED_FALLBACK_MODEL;
+            console.log(`[Attempt ${attempt}/${maxRetries}] Requesting Gemini model: ${targetModel}`);
             response = await ai.models.generateContent({
-              model: PREFERRED_FALLBACK_MODEL,
+              model: targetModel,
               contents: contentsParts,
               config: {
                 systemInstruction,
@@ -300,23 +300,59 @@ ${baseProductPrompt}
                 temperature: 0.3,
               },
             });
-          } else {
-            throw err;
+
+            const responseText = response?.text || '';
+
+            // 1. Log the Raw Gemini Response
+            console.log("RAW GEMINI RESPONSE:", responseText);
+
+            if (!responseText || !responseText.trim()) {
+              throw new Error("Gemini returned an empty response string.");
+            }
+
+            // 2. Log JSON Parse Errors
+            try {
+              parsedResult = JSON.parse(responseText);
+            } catch (parseError: any) {
+              console.error("JSON PARSE ERROR:", parseError, "Raw text snippet:", responseText.slice(0, 200));
+              throw new Error(`Failed to parse JSON response from Gemini model: ${parseError.message}`);
+            }
+
+            // Basic validation check on parsedResult
+            if (!parsedResult || typeof parsedResult !== 'object' || Object.keys(parsedResult).length === 0) {
+              console.error("VALIDATION ERROR: parsedResult is empty or not an object.", parsedResult);
+              throw new Error("Gemini returned an empty or invalid JSON object.");
+            }
+
+          } catch (err: any) {
+            console.warn(`Attempt ${attempt} failed:`, err.message || err);
+            lastError = err;
+            attempt++;
           }
         }
 
-        if (!response || !response.text) {
-          throw new Error('Model returned an empty response.');
+        // 3. Strict Failure on Retries
+        if (!parsedResult) {
+          const failureMsg = lastError?.message || "Failed to generate valid analysis from Gemini after maximum retries.";
+          console.error("STRICT FAILURE ON RETRIES:", failureMsg);
+          return jsonResponse({
+            success: false,
+            error: failureMsg,
+            details: lastError?.stack || undefined,
+          }, 500);
         }
 
-        const parsedResult = JSON.parse(response.text);
         return jsonResponse({
           success: true,
           result: parsedResult,
         });
       } catch (err: any) {
-        console.error('Analysis error:', err);
-        return jsonResponse({ error: err.message || 'Failed to execute product analysis.' }, 500);
+        console.error('Analysis endpoint error:', err);
+        return jsonResponse({
+          success: false,
+          error: err.message || 'Failed to execute product analysis.',
+          details: err.stack,
+        }, 500);
       }
     }
 
