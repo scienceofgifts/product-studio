@@ -21,7 +21,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = 3000;
 
 function getGeminiClient() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -1676,7 +1676,10 @@ Return a strictly valid JSON object matching the comparison schema.
   // Attach Vite middleware in development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: process.env.DISABLE_HMR === 'true' ? false : undefined,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
