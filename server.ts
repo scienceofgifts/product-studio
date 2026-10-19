@@ -1675,10 +1675,12 @@ Return a strictly valid JSON object matching the comparison schema.
 
   // Attach Vite middleware in development
   if (process.env.NODE_ENV !== 'production') {
+    const isHmrDisabled = process.env.DISABLE_HMR === 'true';
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
-        hmr: process.env.DISABLE_HMR === 'true' ? false : undefined,
+        hmr: isHmrDisabled ? false : { port: 24679 },
+        watch: isHmrDisabled ? null : {},
       },
       appType: 'spa',
     });
@@ -1694,6 +1696,14 @@ Return a strictly valid JSON object matching the comparison schema.
     console.log(`Product Intelligence Studio running on http://0.0.0.0:${PORT}`);
   });
 }
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason);
+});
 
 startServer().catch((err) => {
   console.error('Failed to start server:', err);
