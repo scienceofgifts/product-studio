@@ -281,7 +281,7 @@ export const SEED_CATALOGUE_PRODUCTS: ProductRecord[] = [
     verifiedFields: ['workingName', 'productType', 'productSpecs', 'knownDesignReferences'],
     details: {
       workingName: 'Supermarine Spitfire Mk IX Merlin Engine Blueprint Desk Pad',
-      productType: 'drinkware', // desk accessory / mat
+      productType: 'other', // desk accessory / mat
       giftGuideId: 'guide-wwii-history',
       giftGuideName: 'World War II Military History & Aviation Engineering Gifts',
       primaryRecipient: 'Aviation engineer, flight simulator pilot, or RAF Battle of Britain historian',

@@ -9,7 +9,9 @@ import { GoogleGenAI, Type } from '@google/genai';
 import {
   fetchAndExtractProductFacts,
   formatProductFactsForWriter,
-  reconcileWritingBriefWithFacts
+  reconcileWritingBriefWithFacts,
+  sanitizeProductSpecsInput,
+  sanitizeExtractedFactsForProductType
 } from './services/productFactsService.js';
 import { ChatGPTWritingBrief } from './types/index.js';
 import { DEFAULT_EDITORIAL_RULES } from './data/defaultEditorialRules.js';
@@ -860,7 +862,12 @@ app.post('/api/analyze', async (c) => {
       }
     }
 
-    const productFactsPrompt = formatProductFactsForWriter(effectiveFacts);
+    const effectiveProductType = details?.productType || effectiveFacts?.productType?.value;
+    effectiveFacts = sanitizeExtractedFactsForProductType(effectiveFacts, effectiveProductType);
+    const sanitizedSpecsResult = sanitizeProductSpecsInput(details?.productSpecs, effectiveProductType);
+    const sanitizedProductSpecs = sanitizedSpecsResult.cleanedSpecsString;
+
+    const productFactsPrompt = formatProductFactsForWriter(effectiveFacts, effectiveProductType);
 
     const ai = getGeminiClient(c.env.GEMINI_API_KEY);
 
@@ -925,7 +932,7 @@ PRODUCT INPUT DETAILS:
 - Existing Product URL: ${details?.productUrl || 'None'}
 - Current Title: ${details?.currentTitle || 'None'}
 - Current Description: ${details?.currentDescription || 'None'}
-- Specifications: ${details?.productSpecs || 'None provided'}
+- Specifications: ${sanitizedProductSpecs || 'None provided'}
 - Known Design References: ${details?.knownDesignReferences || 'None supplied'}
 - User Initial Positioning Idea: ${details?.initialPositioningIdea || 'None'}
 - Specific Questions or Concerns: ${details?.specificQuestions || 'None'}
@@ -1229,9 +1236,9 @@ Ensure every field is thoroughly reasoned, human-sounding, and rigorously ground
         }
       } else if (mode === 'brief') {
         if (parsed && parsed.writingBrief) {
-          parsed.writingBrief = reconcileWritingBriefWithFacts(parsed.writingBrief, effectiveFacts);
+          parsed.writingBrief = reconcileWritingBriefWithFacts(parsed.writingBrief, effectiveFacts, effectiveProductType, sanitizedProductSpecs);
           parsed.writingBrief = await ensureSampleEntryWordCountRange(ai, actualModel, parsed.writingBrief);
-          parsed.writingBrief = reconcileWritingBriefWithFacts(parsed.writingBrief, effectiveFacts);
+          parsed.writingBrief = reconcileWritingBriefWithFacts(parsed.writingBrief, effectiveFacts, effectiveProductType, sanitizedProductSpecs);
           validationResult = validateWritingBrief(parsed.writingBrief, details);
           if (!parsed.titleLaboratory && parsed.writingBrief.recommendedTitles?.primary) {
             parsed.titleLaboratory = {
@@ -1255,9 +1262,9 @@ Ensure every field is thoroughly reasoned, human-sounding, and rigorously ground
         }
       } else {
         if (parsed && parsed.writingBrief && parsed.titleLaboratory) {
-          parsed.writingBrief = reconcileWritingBriefWithFacts(parsed.writingBrief, effectiveFacts);
+          parsed.writingBrief = reconcileWritingBriefWithFacts(parsed.writingBrief, effectiveFacts, effectiveProductType, sanitizedProductSpecs);
           parsed.writingBrief = await ensureSampleEntryWordCountRange(ai, actualModel, parsed.writingBrief);
-          parsed.writingBrief = reconcileWritingBriefWithFacts(parsed.writingBrief, effectiveFacts);
+          parsed.writingBrief = reconcileWritingBriefWithFacts(parsed.writingBrief, effectiveFacts, effectiveProductType, sanitizedProductSpecs);
           const briefVal = validateWritingBrief(parsed.writingBrief, details);
           const titleVal = validateTitleLaboratory(parsed.titleLaboratory);
           const errors = [...briefVal.errors, ...titleVal.errors];
@@ -1332,7 +1339,7 @@ PRODUCT DETAILS:
 - Primary Recipient: ${details.primaryRecipient || 'Gift Recipient'}
 - Audience Interest: ${details.audienceInterest || 'General'}
 - Current Title: ${details.currentTitle || 'None'}
-- Specifications: ${details.productSpecs || 'None'}
+- Specifications: ${sanitizeProductSpecsInput(details.productSpecs, details.productType).cleanedSpecsString || 'None'}
 - Known Design References: ${details.knownDesignReferences || 'None'}
 
 EXISTING TITLE CANDIDATES TO AVOID REPEATING:
@@ -1460,7 +1467,7 @@ PRODUCT A:
 - Secondary Recipient: ${productA.details?.secondaryRecipient || 'None'}
 - Niche / Interest: ${productA.details?.audienceInterest || 'Unspecified'}
 - Initial Positioning: ${productA.details?.initialPositioningIdea || 'None'}
-- Specifications: ${productA.details?.productSpecs || 'None'}
+- Specifications: ${sanitizeProductSpecsInput(productA.details?.productSpecs, productA.details?.productType).cleanedSpecsString || 'None'}
 - Design References: ${productA.details?.knownDesignReferences || 'None'}
 
 PRODUCT B:
@@ -1471,7 +1478,7 @@ PRODUCT B:
 - Secondary Recipient: ${productB.details?.secondaryRecipient || 'None'}
 - Niche / Interest: ${productB.details?.audienceInterest || 'Unspecified'}
 - Initial Positioning: ${productB.details?.initialPositioningIdea || 'None'}
-- Specifications: ${productB.details?.productSpecs || 'None'}
+- Specifications: ${sanitizeProductSpecsInput(productB.details?.productSpecs, productB.details?.productType).cleanedSpecsString || 'None'}
 - Design References: ${productB.details?.knownDesignReferences || 'None'}
 
 ACTIVE BUSINESS BRAIN CONTEXT:

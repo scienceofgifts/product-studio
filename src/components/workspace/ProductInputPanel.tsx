@@ -28,7 +28,8 @@ import { ProductDetailsInput, ProductType, AnalysisMode, GiftGuide, ContextProfi
 import { processImageUpload } from '../../utils/imageUtils';
 import { SAMPLE_PRODUCTS } from '../../data/sampleProducts';
 import { ContextProfileBar } from './ContextProfileBar';
-import { extractSharedContext } from '../../utils/contextUtils';
+import { extractSharedContext, applyProductTypeChange } from '../../utils/contextUtils';
+import { sanitizeProductSpecsInput, sanitizeExtractedFactsForProductType } from '../../services/productFactsService';
 import { SUPPORTED_MODELS, getModelDefinition } from '../../config/models';
 
 interface ProductInputPanelProps {
@@ -141,13 +142,19 @@ export const ProductInputPanel: React.FC<ProductInputPanelProps> = ({
         throw new Error(resJson?.error || 'Failed to extract facts from URL.');
       }
 
-      const facts = resJson.facts;
+      const rawFacts = resJson.facts;
+      const effectiveProductType = (rawFacts.productType?.value as ProductType) || details.productType;
+      const sanitizedFacts = sanitizeExtractedFactsForProductType(rawFacts, effectiveProductType);
+      const sanitizedSpecs = sanitizeProductSpecsInput(details.productSpecs, effectiveProductType).cleanedSpecsString;
+
       const updatedDetails: ProductDetailsInput = {
         ...details,
-        extractedFacts: facts,
-        workingName: details.workingName || facts.rawExtractedTitle || details.workingName,
-        currentTitle: details.currentTitle || facts.rawExtractedTitle || details.currentTitle,
-        currentDescription: details.currentDescription || facts.rawExtractedDescription || details.currentDescription
+        productType: effectiveProductType,
+        productSpecs: sanitizedSpecs,
+        extractedFacts: sanitizedFacts,
+        workingName: details.workingName || rawFacts.rawExtractedTitle || details.workingName,
+        currentTitle: details.currentTitle || rawFacts.rawExtractedTitle || details.currentTitle,
+        currentDescription: details.currentDescription || rawFacts.rawExtractedDescription || details.currentDescription
       };
 
       onDetailsChange(updatedDetails);
@@ -159,6 +166,10 @@ export const ProductInputPanel: React.FC<ProductInputPanelProps> = ({
   };
 
   const handleFieldChange = (field: keyof ProductDetailsInput, value: any) => {
+    if (field === 'productType') {
+      onDetailsChange(applyProductTypeChange(details, value as ProductType));
+      return;
+    }
     onDetailsChange({
       ...details,
       [field]: value

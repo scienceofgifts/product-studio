@@ -4,11 +4,19 @@
  */
 
 import { ChatGPTWritingBrief, ProductRecord } from '../types';
+import { validateAndBuildVerifiedSpecsList } from '../services/productFactsService';
 
 /**
  * Converts a ChatGPTWritingBrief into a concise, authoritative writing prompt for ChatGPT (Sections A through G).
  */
 export function formatWritingBriefMarkdown(brief: ChatGPTWritingBrief): string {
+  const { verifiedSpecs } = validateAndBuildVerifiedSpecsList({
+    productType: brief.productIdentity?.productType,
+    productSpecs: brief.productIdentity?.suppliedSpecifications,
+    confirmedSpecifications: brief.confirmedSpecifications,
+    missingInformation: brief.missingInformationDoNotInvent
+  });
+
   return `# EDITORIAL WRITING BRIEF: ${brief.productIdentity?.workingTitle || 'Product Entry'}
 **Science of Gifts — Editorial Intelligence Studio**
 *Generated: ${brief.generatedDate ? new Date(brief.generatedDate).toLocaleDateString() : 'N/A'}*
@@ -25,9 +33,9 @@ You are writing a dedicated gift-guide product entry for Science of Gifts.
 - **Working Product Name:** ${brief.productIdentity?.workingTitle || 'Untitled'}
 - **Product Type:** ${brief.productIdentity?.productType || 'Unspecified'}
 - **Canonical Verified Specifications:**
-${brief.confirmedSpecifications && brief.confirmedSpecifications.length > 0 
-  ? brief.confirmedSpecifications.map((s) => `  - ${s}`).join('\n')
-  : `  - ${brief.productIdentity?.suppliedSpecifications || 'None supplied'}`}
+${verifiedSpecs.length > 0
+  ? verifiedSpecs.map((s) => `  - ${s}`).join('\n')
+  : '  - None verified. Do NOT invent specifications.'}
 
 ### C. INTENDED RECIPIENT & GIFT-GUIDE CONTEXT
 - **Primary Recipient:** ${brief.recipientProfile?.primaryRecipient || 'Specialist enthusiast'}

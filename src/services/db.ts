@@ -20,6 +20,11 @@ import { INITIAL_WRITING_GUIDELINES, INITIAL_WRITING_EXAMPLES_LIST } from '../da
 import { DEFAULT_MODEL_ID, resolveModelId } from '../config/models';
 import { DEFAULT_EDITORIAL_RULES, synthesizeEditorialRulesFromLegacy } from '../data/defaultEditorialRules';
 import { EMPTY_SHARED_CONTEXT } from '../utils/contextUtils';
+import {
+  sanitizeProductSpecsInput,
+  sanitizeExtractedFactsForProductType,
+  reconcileWritingBriefWithFacts
+} from './productFactsService';
 
 const DB_NAME = 'science_of_gifts_studio_db';
 const DB_VERSION = 6;
@@ -372,6 +377,11 @@ class ProductIntelligenceDB {
           if (item.imageBlob && !item.imageDataUrl) {
             item.imageDataUrl = URL.createObjectURL(item.imageBlob);
           }
+          if (item.details) {
+            const pType = item.details.productType || 'mug';
+            item.details.productSpecs = sanitizeProductSpecsInput(item.details.productSpecs, pType).cleanedSpecsString;
+            item.details.extractedFacts = sanitizeExtractedFactsForProductType(item.details.extractedFacts, pType);
+          }
           if (item.analysisResult) {
             if (!item.analysisResult.requestedModel) {
               item.analysisResult.requestedModel = item.analysisResult.modelIdentifier || DEFAULT_MODEL_ID;
@@ -381,6 +391,14 @@ class ProductIntelligenceDB {
             }
             if (item.analysisResult.fallbackOccurred === undefined) {
               item.analysisResult.fallbackOccurred = false;
+            }
+            if (item.analysisResult.writingBrief && item.details) {
+              item.analysisResult.writingBrief = reconcileWritingBriefWithFacts(
+                item.analysisResult.writingBrief,
+                item.details.extractedFacts,
+                item.details.productType,
+                item.details.productSpecs
+              );
             }
           }
         }
@@ -404,6 +422,11 @@ class ProductIntelligenceDB {
           if (item.imageBlob && !item.imageDataUrl) {
             item.imageDataUrl = URL.createObjectURL(item.imageBlob);
           }
+          if (item.details) {
+            const pType = item.details.productType || 'mug';
+            item.details.productSpecs = sanitizeProductSpecsInput(item.details.productSpecs, pType).cleanedSpecsString;
+            item.details.extractedFacts = sanitizeExtractedFactsForProductType(item.details.extractedFacts, pType);
+          }
           if (item.analysisResult) {
             if (!item.analysisResult.requestedModel) {
               item.analysisResult.requestedModel = item.analysisResult.modelIdentifier || DEFAULT_MODEL_ID;
@@ -413,6 +436,14 @@ class ProductIntelligenceDB {
             }
             if (item.analysisResult.fallbackOccurred === undefined) {
               item.analysisResult.fallbackOccurred = false;
+            }
+            if (item.analysisResult.writingBrief && item.details) {
+              item.analysisResult.writingBrief = reconcileWritingBriefWithFacts(
+                item.analysisResult.writingBrief,
+                item.details.extractedFacts,
+                item.details.productType,
+                item.details.productSpecs
+              );
             }
           }
         }
@@ -719,12 +750,13 @@ class ProductIntelligenceDB {
             }
           }
 
-          // Sanitize every profile so all 10 context fields are guaranteed present
+          // Sanitize every profile so shared context fields are present and productSpecs is never shared
           const sanitized = profiles.map((p) => ({
             ...p,
             context: {
               ...EMPTY_SHARED_CONTEXT,
-              ...(p.context || {})
+              ...(p.context || {}),
+              productSpecs: ''
             }
           }));
 
@@ -759,7 +791,8 @@ class ProductIntelligenceDB {
             ...item,
             context: {
               ...EMPTY_SHARED_CONTEXT,
-              ...(item.context || {})
+              ...(item.context || {}),
+              productSpecs: ''
             }
           });
         };
@@ -780,7 +813,8 @@ class ProductIntelligenceDB {
           ...profile,
           context: {
             ...EMPTY_SHARED_CONTEXT,
-            ...(profile.context || {})
+            ...(profile.context || {}),
+            productSpecs: ''
           },
           updatedAt: new Date().toISOString()
         };
@@ -822,7 +856,8 @@ class ProductIntelligenceDB {
       isDefault: false,
       context: {
         ...EMPTY_SHARED_CONTEXT,
-        ...(original.context || {})
+        ...(original.context || {}),
+        productSpecs: ''
       }
     };
 
@@ -846,7 +881,8 @@ class ProductIntelligenceDB {
             resolve({
               context: {
                 ...EMPTY_SHARED_CONTEXT,
-                ...req.result.context
+                ...req.result.context,
+                productSpecs: ''
               },
               activeProfileId: req.result.activeProfileId ?? null
             });
@@ -876,7 +912,8 @@ class ProductIntelligenceDB {
           id: 'active_working_context',
           context: {
             ...EMPTY_SHARED_CONTEXT,
-            ...context
+            ...context,
+            productSpecs: ''
           },
           activeProfileId,
           savedAt: new Date().toISOString()

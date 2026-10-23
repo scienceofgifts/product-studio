@@ -3,7 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ProductDetailsInput, SharedWorkingContext } from '../types';
+import { ProductDetailsInput, ProductType, SharedWorkingContext } from '../types';
+import {
+  sanitizeProductSpecsInput,
+  sanitizeExtractedFactsForProductType
+} from '../services/productFactsService';
 
 export const EMPTY_SHARED_CONTEXT: SharedWorkingContext = {
   giftGuideId: '',
@@ -20,7 +24,8 @@ export const EMPTY_SHARED_CONTEXT: SharedWorkingContext = {
 
 /**
  * Extracts shared context fields from a full ProductDetailsInput object.
- * Guaranteed to return all 10 reusable fields with safe string fallbacks.
+ * Physical product specifications (productSpecs) are strictly product-specific and
+ * are NEVER stored into shared guide/recipient context profiles to prevent cross-product contamination.
  */
 export function extractSharedContext(details?: Partial<ProductDetailsInput> | null): SharedWorkingContext {
   if (!details) return { ...EMPTY_SHARED_CONTEXT };
@@ -32,7 +37,7 @@ export function extractSharedContext(details?: Partial<ProductDetailsInput> | nu
     audienceInterest: details.audienceInterest || '',
     occasion: details.occasion || '',
     initialPositioningIdea: details.initialPositioningIdea || '',
-    productSpecs: details.productSpecs || '',
+    productSpecs: '',
     knownDesignReferences: details.knownDesignReferences || '',
     specificQuestions: details.specificQuestions || ''
   };
@@ -40,21 +45,27 @@ export function extractSharedContext(details?: Partial<ProductDetailsInput> | nu
 
 /**
  * Applies a shared context onto existing details, strictly preserving product-specific fields
- * (workingName, productType, productUrl, currentTitle, currentDescription, extractedFacts).
+ * (workingName, productType, productUrl, currentTitle, currentDescription, productSpecs, extractedFacts)
+ * and ensuring existing specifications are valid for the product's productType.
  */
 export function applySharedContextToDetails(
   existingDetails: ProductDetailsInput,
   sharedContext?: Partial<SharedWorkingContext> | null
 ): ProductDetailsInput {
   const ctx = sharedContext || EMPTY_SHARED_CONTEXT;
+  const targetType = existingDetails?.productType || 'mug';
+  const cleanedSpecs = sanitizeProductSpecsInput(existingDetails?.productSpecs, targetType).cleanedSpecsString;
+  const cleanedFacts = sanitizeExtractedFactsForProductType(existingDetails?.extractedFacts, targetType);
+
   return {
-    // Preserve product-specific fields
+    // Preserve product-specific fields (never overwrite productSpecs from shared profile context)
     workingName: existingDetails?.workingName || '',
-    productType: existingDetails?.productType || 'mug',
+    productType: targetType,
     productUrl: existingDetails?.productUrl || '',
     currentTitle: existingDetails?.currentTitle || '',
     currentDescription: existingDetails?.currentDescription || '',
-    extractedFacts: existingDetails?.extractedFacts,
+    productSpecs: cleanedSpecs,
+    extractedFacts: cleanedFacts,
 
     // Apply shared contextual fields
     giftGuideId: ctx.giftGuideId || '',
@@ -64,7 +75,6 @@ export function applySharedContextToDetails(
     audienceInterest: ctx.audienceInterest || '',
     occasion: ctx.occasion || '',
     initialPositioningIdea: ctx.initialPositioningIdea || '',
-    productSpecs: ctx.productSpecs || '',
     knownDesignReferences: ctx.knownDesignReferences || '',
     specificQuestions: ctx.specificQuestions || ''
   };
@@ -72,7 +82,7 @@ export function applySharedContextToDetails(
 
 /**
  * Creates new product details while keeping the current shared context populated,
- * resetting ONLY genuinely product-specific fields (name, shop url, shop title/desc, facts).
+ * resetting ALL product-specific fields (name, shop url, shop title/desc, productSpecs, facts).
  */
 export function createNewProductDetailsWithContext(
   currentSharedContext?: Partial<SharedWorkingContext> | null
@@ -84,6 +94,7 @@ export function createNewProductDetailsWithContext(
     productUrl: '',
     currentTitle: '',
     currentDescription: '',
+    productSpecs: '',
     extractedFacts: undefined,
     giftGuideId: ctx.giftGuideId || '',
     giftGuideName: ctx.giftGuideName || '',
@@ -92,9 +103,27 @@ export function createNewProductDetailsWithContext(
     audienceInterest: ctx.audienceInterest || '',
     occasion: ctx.occasion || '',
     initialPositioningIdea: ctx.initialPositioningIdea || '',
-    productSpecs: ctx.productSpecs || '',
     knownDesignReferences: ctx.knownDesignReferences || '',
     specificQuestions: ctx.specificQuestions || ''
+  };
+}
+
+/**
+ * Updates productType on an active ProductDetailsInput and automatically prunes any
+ * category-incompatible physical specifications or extracted facts from the previous product type.
+ */
+export function applyProductTypeChange(
+  details: ProductDetailsInput,
+  newProductType: ProductType
+): ProductDetailsInput {
+  const sanitizedSpecs = sanitizeProductSpecsInput(details.productSpecs, newProductType).cleanedSpecsString;
+  const sanitizedFacts = sanitizeExtractedFactsForProductType(details.extractedFacts, newProductType);
+
+  return {
+    ...details,
+    productType: newProductType,
+    productSpecs: sanitizedSpecs,
+    extractedFacts: sanitizedFacts
   };
 }
 
@@ -115,7 +144,6 @@ export function areContextsEqual(
     (a.audienceInterest || '').trim() === (b.audienceInterest || '').trim() &&
     (a.occasion || '').trim() === (b.occasion || '').trim() &&
     (a.initialPositioningIdea || '').trim() === (b.initialPositioningIdea || '').trim() &&
-    (a.productSpecs || '').trim() === (b.productSpecs || '').trim() &&
     (a.knownDesignReferences || '').trim() === (b.knownDesignReferences || '').trim() &&
     (a.specificQuestions || '').trim() === (b.specificQuestions || '').trim()
   );
@@ -133,7 +161,6 @@ export function isContextNonEmpty(context?: Partial<SharedWorkingContext> | null
     context.audienceInterest?.trim() ||
     context.occasion?.trim() ||
     context.initialPositioningIdea?.trim() ||
-    context.productSpecs?.trim() ||
     context.knownDesignReferences?.trim() ||
     context.specificQuestions?.trim()
   );

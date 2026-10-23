@@ -27,7 +27,8 @@ import { ProductDetailsInput, ProductType, GiftGuide, ContextProfile, SharedWork
 import { UploadedImageItem } from '../../types/workflow';
 import { processImageUpload } from '../../utils/imageUtils';
 import { ContextProfileBar } from '../workspace/ContextProfileBar';
-import { extractSharedContext } from '../../utils/contextUtils';
+import { extractSharedContext, applyProductTypeChange } from '../../utils/contextUtils';
+import { sanitizeProductSpecsInput, sanitizeExtractedFactsForProductType } from '../../services/productFactsService';
 import { SUPPORTED_MODELS } from '../../config/models';
 
 interface Step1ProductInputProps {
@@ -101,6 +102,10 @@ export const Step1ProductInput: React.FC<Step1ProductInputProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFieldChange = (field: keyof ProductDetailsInput, value: any) => {
+    if (field === 'productType') {
+      onDetailsChange(applyProductTypeChange(details, value as ProductType));
+      return;
+    }
     onDetailsChange({
       ...details,
       [field]: value
@@ -163,14 +168,20 @@ export const Step1ProductInput: React.FC<Step1ProductInputProps> = ({
         throw new Error(resJson?.error || 'Failed to extract facts from URL.');
       }
 
-      const facts = resJson.facts;
-      // Preserve existing manual inputs, only populate if empty
+      const rawFacts = resJson.facts;
+      const effectiveProductType = (rawFacts.productType?.value as ProductType) || details.productType;
+      const sanitizedFacts = sanitizeExtractedFactsForProductType(rawFacts, effectiveProductType);
+      const sanitizedSpecs = sanitizeProductSpecsInput(details.productSpecs, effectiveProductType).cleanedSpecsString;
+
+      // Preserve compatible manual inputs, update productType and facts
       const updatedDetails: ProductDetailsInput = {
         ...details,
-        extractedFacts: facts,
-        workingName: details.workingName || facts.rawExtractedTitle || details.workingName,
-        currentTitle: details.currentTitle || facts.rawExtractedTitle || details.currentTitle,
-        currentDescription: details.currentDescription || facts.rawExtractedDescription || details.currentDescription
+        productType: effectiveProductType,
+        productSpecs: sanitizedSpecs,
+        extractedFacts: sanitizedFacts,
+        workingName: details.workingName || rawFacts.rawExtractedTitle || details.workingName,
+        currentTitle: details.currentTitle || rawFacts.rawExtractedTitle || details.currentTitle,
+        currentDescription: details.currentDescription || rawFacts.rawExtractedDescription || details.currentDescription
       };
 
       onDetailsChange(updatedDetails);

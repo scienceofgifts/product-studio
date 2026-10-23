@@ -5,6 +5,7 @@
 
 import { WorkflowState } from '../types/workflow';
 import { DEFAULT_EDITORIAL_RULES } from '../data/defaultEditorialRules';
+import { validateAndBuildVerifiedSpecsList } from '../services/productFactsService';
 
 /**
  * Synthesizes a focused Editorial Brief from the 6-step workflow state.
@@ -21,35 +22,16 @@ export function synthesizeEditorialBrief(
   const productType = details.productType || 'gift item';
   const guideName = details.giftGuideName || 'Science of Gifts Editorial Guide';
 
-  // 1. Facts & Specifications (Verified)
-  const specsList: string[] = [];
-  if (details.productSpecs && details.productSpecs.trim()) {
-    specsList.push(details.productSpecs.trim());
-  }
-  if (details.extractedFacts) {
-    if (details.extractedFacts.fabricComposition?.value) {
-      specsList.push(`Material / Fabric: ${details.extractedFacts.fabricComposition.value}`);
-    }
-    if (details.extractedFacts.fabricWeight?.value) {
-      specsList.push(`Fabric Weight: ${details.extractedFacts.fabricWeight.value}`);
-    }
-    if (details.extractedFacts.fit?.value) {
-      specsList.push(`Fit: ${details.extractedFacts.fit.value}`);
-    }
-    if (details.extractedFacts.price?.value) {
-      specsList.push(`Price: ${details.extractedFacts.price.value}`);
-    }
-    if (details.extractedFacts.sizeRange?.value) {
-      specsList.push(`Sizes: ${details.extractedFacts.sizeRange.value}`);
-    }
-  }
-  if (analysisResult?.writingBrief?.confirmedSpecifications) {
-    analysisResult.writingBrief.confirmedSpecifications.forEach((s) => {
-      if (s && s.trim() && !specsList.includes(s.trim())) {
-        specsList.push(s.trim());
-      }
-    });
-  }
+  // 1. Facts & Specifications (Verified & Product-Type Validated)
+  const { verifiedSpecs: specsList, movedToUncertainties } = validateAndBuildVerifiedSpecsList({
+    productType: details.productType,
+    productSpecs: details.productSpecs,
+    extractedFacts: details.extractedFacts,
+    confirmedSpecifications: analysisResult?.writingBrief?.confirmedSpecifications,
+    undeterminedInformation: analysisResult?.visualConceptual?.undeterminedInformation,
+    potentialAmbiguities: analysisResult?.visualConceptual?.potentialAmbiguities,
+    missingInformation: analysisResult?.writingBrief?.missingInformationDoNotInvent
+  });
 
   // 2. Selected Design Interpretation
   const interpretations: string[] = [...editorialSelections.selectedInterpretations];
@@ -84,15 +66,42 @@ export function synthesizeEditorialBrief(
   // 5. Uncertainties & Facts to avoid inventing
   const uncertainties: string[] = [];
   if (analysisResult?.visualConceptual?.undeterminedInformation) {
-    uncertainties.push(...analysisResult.visualConceptual.undeterminedInformation);
+    analysisResult.visualConceptual.undeterminedInformation.forEach((u) => {
+      if (u && !uncertainties.includes(u)) uncertainties.push(u);
+    });
   }
   if (analysisResult?.visualConceptual?.potentialAmbiguities) {
-    uncertainties.push(...analysisResult.visualConceptual.potentialAmbiguities);
+    analysisResult.visualConceptual.potentialAmbiguities.forEach((a) => {
+      if (a && !uncertainties.includes(a)) uncertainties.push(a);
+    });
+  }
+  if (analysisResult?.writingBrief?.missingInformationDoNotInvent) {
+    analysisResult.writingBrief.missingInformationDoNotInvent.forEach((m) => {
+      if (m && !uncertainties.includes(m)) uncertainties.push(m);
+    });
   }
   if (analysisResult?.writingBrief?.claimsAndAssumptionsToAvoid) {
     analysisResult.writingBrief.claimsAndAssumptionsToAvoid.forEach((c) => {
       if (c && !uncertainties.includes(c)) uncertainties.push(c);
     });
+  }
+  for (const moved of movedToUncertainties) {
+    if (moved && !uncertainties.includes(moved)) {
+      uncertainties.push(moved);
+    }
+  }
+
+  // If apparel product is missing verified fabric composition / GSM weight, explicitly guard against invention
+  const normType = (details.productType || '').toLowerCase();
+  if (normType === 'hoodie' || normType === 't-shirt' || normType === 'sweatshirt') {
+    const hasVerifiedFabric = specsList.some((s) => /\b(cotton|fleece|polyester|blend|material|fabric)\b/i.test(s));
+    const hasVerifiedWeight = specsList.some((s) => /\b(gsm|oz\s+fabric|fabric\s+weight)\b/i.test(s));
+    if (!hasVerifiedFabric && !uncertainties.some((u) => /\b(fabric|blend|composition)\b/i.test(u))) {
+      uncertainties.push('Exact fabric blend / material composition is not verified in the product record; do not invent cotton/polyester percentages.');
+    }
+    if (!hasVerifiedWeight && !uncertainties.some((u) => /\b(gsm|weight)\b/i.test(u))) {
+      uncertainties.push('Exact fabric weight (GSM / oz) is not verified in the product record; do not invent fleece or garment weight.');
+    }
   }
 
   // 6. Formatting style & length
