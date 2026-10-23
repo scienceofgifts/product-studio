@@ -20,8 +20,10 @@ export const EMPTY_SHARED_CONTEXT: SharedWorkingContext = {
 
 /**
  * Extracts shared context fields from a full ProductDetailsInput object.
+ * Guaranteed to return all 10 reusable fields with safe string fallbacks.
  */
-export function extractSharedContext(details: ProductDetailsInput): SharedWorkingContext {
+export function extractSharedContext(details?: Partial<ProductDetailsInput> | null): SharedWorkingContext {
+  if (!details) return { ...EMPTY_SHARED_CONTEXT };
   return {
     giftGuideId: details.giftGuideId || '',
     giftGuideName: details.giftGuideName || '',
@@ -37,64 +39,74 @@ export function extractSharedContext(details: ProductDetailsInput): SharedWorkin
 }
 
 /**
- * Applies a shared context onto existing details, strictly preserving product-specific fields.
+ * Applies a shared context onto existing details, strictly preserving product-specific fields
+ * (workingName, productType, productUrl, currentTitle, currentDescription, extractedFacts).
  */
 export function applySharedContextToDetails(
   existingDetails: ProductDetailsInput,
-  sharedContext: SharedWorkingContext
+  sharedContext?: Partial<SharedWorkingContext> | null
 ): ProductDetailsInput {
+  const ctx = sharedContext || EMPTY_SHARED_CONTEXT;
   return {
     // Preserve product-specific fields
-    workingName: existingDetails.workingName || '',
-    productType: existingDetails.productType || 'mug',
-    productUrl: existingDetails.productUrl || '',
-    currentTitle: existingDetails.currentTitle || '',
-    currentDescription: existingDetails.currentDescription || '',
+    workingName: existingDetails?.workingName || '',
+    productType: existingDetails?.productType || 'mug',
+    productUrl: existingDetails?.productUrl || '',
+    currentTitle: existingDetails?.currentTitle || '',
+    currentDescription: existingDetails?.currentDescription || '',
+    extractedFacts: existingDetails?.extractedFacts,
 
     // Apply shared contextual fields
-    giftGuideId: sharedContext.giftGuideId || '',
-    giftGuideName: sharedContext.giftGuideName || '',
-    primaryRecipient: sharedContext.primaryRecipient || '',
-    secondaryRecipient: sharedContext.secondaryRecipient || '',
-    audienceInterest: sharedContext.audienceInterest || '',
-    occasion: sharedContext.occasion || '',
-    initialPositioningIdea: sharedContext.initialPositioningIdea || '',
-    productSpecs: sharedContext.productSpecs || '',
-    knownDesignReferences: sharedContext.knownDesignReferences || '',
-    specificQuestions: sharedContext.specificQuestions || ''
+    giftGuideId: ctx.giftGuideId || '',
+    giftGuideName: ctx.giftGuideName || '',
+    primaryRecipient: ctx.primaryRecipient || '',
+    secondaryRecipient: ctx.secondaryRecipient || '',
+    audienceInterest: ctx.audienceInterest || '',
+    occasion: ctx.occasion || '',
+    initialPositioningIdea: ctx.initialPositioningIdea || '',
+    productSpecs: ctx.productSpecs || '',
+    knownDesignReferences: ctx.knownDesignReferences || '',
+    specificQuestions: ctx.specificQuestions || ''
   };
 }
 
 /**
  * Creates new product details while keeping the current shared context populated,
- * resetting ONLY genuinely product-specific fields (name, shop url, shop title/desc).
+ * resetting ONLY genuinely product-specific fields (name, shop url, shop title/desc, facts).
  */
 export function createNewProductDetailsWithContext(
-  currentSharedContext: SharedWorkingContext
+  currentSharedContext?: Partial<SharedWorkingContext> | null
 ): ProductDetailsInput {
+  const ctx = currentSharedContext || EMPTY_SHARED_CONTEXT;
   return {
     workingName: '',
     productType: 'mug',
     productUrl: '',
     currentTitle: '',
     currentDescription: '',
-    giftGuideId: currentSharedContext.giftGuideId || '',
-    giftGuideName: currentSharedContext.giftGuideName || '',
-    primaryRecipient: currentSharedContext.primaryRecipient || '',
-    secondaryRecipient: currentSharedContext.secondaryRecipient || '',
-    audienceInterest: currentSharedContext.audienceInterest || '',
-    occasion: currentSharedContext.occasion || '',
-    initialPositioningIdea: currentSharedContext.initialPositioningIdea || '',
-    productSpecs: currentSharedContext.productSpecs || '',
-    knownDesignReferences: currentSharedContext.knownDesignReferences || '',
-    specificQuestions: currentSharedContext.specificQuestions || ''
+    extractedFacts: undefined,
+    giftGuideId: ctx.giftGuideId || '',
+    giftGuideName: ctx.giftGuideName || '',
+    primaryRecipient: ctx.primaryRecipient || '',
+    secondaryRecipient: ctx.secondaryRecipient || '',
+    audienceInterest: ctx.audienceInterest || '',
+    occasion: ctx.occasion || '',
+    initialPositioningIdea: ctx.initialPositioningIdea || '',
+    productSpecs: ctx.productSpecs || '',
+    knownDesignReferences: ctx.knownDesignReferences || '',
+    specificQuestions: ctx.specificQuestions || ''
   };
 }
 
 /**
  * Deep compares two SharedWorkingContext objects for field equality.
  */
-export function areContextsEqual(a: SharedWorkingContext, b: SharedWorkingContext): boolean {
+export function areContextsEqual(
+  a?: Partial<SharedWorkingContext> | null,
+  b?: Partial<SharedWorkingContext> | null
+): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
   return (
     (a.giftGuideId || '') === (b.giftGuideId || '') &&
     (a.giftGuideName || '') === (b.giftGuideName || '') &&
@@ -112,7 +124,8 @@ export function areContextsEqual(a: SharedWorkingContext, b: SharedWorkingContex
 /**
  * Checks if a context has any substantive content filled out.
  */
-export function isContextNonEmpty(context: SharedWorkingContext): boolean {
+export function isContextNonEmpty(context?: Partial<SharedWorkingContext> | null): boolean {
+  if (!context) return false;
   return Boolean(
     context.giftGuideId ||
     context.primaryRecipient?.trim() ||

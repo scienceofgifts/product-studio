@@ -24,7 +24,7 @@ import {
   BookOpen,
   Trash2
 } from 'lucide-react';
-import { ProductDetailsInput, ProductType, AnalysisMode, GiftGuide, ContextProfile } from '../../types';
+import { ProductDetailsInput, ProductType, AnalysisMode, GiftGuide, ContextProfile, SharedWorkingContext } from '../../types';
 import { processImageUpload } from '../../utils/imageUtils';
 import { SAMPLE_PRODUCTS } from '../../data/sampleProducts';
 import { ContextProfileBar } from './ContextProfileBar';
@@ -65,8 +65,8 @@ interface ProductInputPanelProps {
   activeProfileId: string | null;
   isContextModified: boolean;
   onSelectProfile: (profileId: string | null, force?: boolean) => void;
-  onSaveToActiveProfile: () => Promise<void>;
-  onCreateProfile: (name: string, description: string) => Promise<void>;
+  onSaveToActiveProfile: (contextToSave?: SharedWorkingContext) => Promise<void>;
+  onCreateProfile: (name: string, description: string, contextToSave?: SharedWorkingContext) => Promise<void>;
   onRenameProfile: (id: string, newName: string, newDescription?: string) => Promise<void>;
   onDuplicateProfile: (id: string) => Promise<void>;
   onDeleteProfile: (id: string) => Promise<void>;

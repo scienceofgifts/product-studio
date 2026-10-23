@@ -7,13 +7,13 @@ import { WorkflowState } from '../types/workflow';
 import { DEFAULT_EDITORIAL_RULES } from '../data/defaultEditorialRules';
 
 /**
- * Synthesizes a comprehensive, authoritative Editorial Brief from the 6-step workflow state,
- * incorporating the single global Editorial Rules with strict precedence:
- * Verified Product Facts > Global Editorial Rules > Product-Specific Choices.
+ * Synthesizes a focused Editorial Brief from the 6-step workflow state.
+ * Contains product identity, verified specifications, recipient profile, creative direction,
+ * and copy parameters. Does NOT duplicate global editorial rules.
  */
 export function synthesizeEditorialBrief(
   state: WorkflowState,
-  editorialRules?: string | null
+  _editorialRules?: string | null
 ): string {
   const { details, analysisResult, editorialSelections, copyConfig, images } = state;
 
@@ -23,8 +23,8 @@ export function synthesizeEditorialBrief(
 
   // 1. Facts & Specifications (Verified)
   const specsList: string[] = [];
-  if (details.productSpecs) {
-    specsList.push(details.productSpecs);
+  if (details.productSpecs && details.productSpecs.trim()) {
+    specsList.push(details.productSpecs.trim());
   }
   if (details.extractedFacts) {
     if (details.extractedFacts.fabricComposition?.value) {
@@ -45,7 +45,9 @@ export function synthesizeEditorialBrief(
   }
   if (analysisResult?.writingBrief?.confirmedSpecifications) {
     analysisResult.writingBrief.confirmedSpecifications.forEach((s) => {
-      if (!specsList.includes(s)) specsList.push(s);
+      if (s && s.trim() && !specsList.includes(s.trim())) {
+        specsList.push(s.trim());
+      }
     });
   }
 
@@ -89,43 +91,28 @@ export function synthesizeEditorialBrief(
   }
   if (analysisResult?.writingBrief?.claimsAndAssumptionsToAvoid) {
     analysisResult.writingBrief.claimsAndAssumptionsToAvoid.forEach((c) => {
-      if (!uncertainties.includes(c)) uncertainties.push(c);
+      if (c && !uncertainties.includes(c)) uncertainties.push(c);
     });
   }
 
   // 6. Formatting style & length
-  let lengthDesc = '180–240 words (Standard Gift Guide Entry)';
-  if (copyConfig.targetLength === 'short') lengthDesc = '100–150 words (Concise Entry)';
-  if (copyConfig.targetLength === 'long') lengthDesc = '300–450 words (In-depth Feature Entry)';
+  let lengthDesc = '180–240 words';
+  if (copyConfig.targetLength === 'short') lengthDesc = '100–150 words';
+  if (copyConfig.targetLength === 'long') lengthDesc = '300–450 words';
   if (copyConfig.targetLength === 'custom' && copyConfig.customWordCount) {
     lengthDesc = `${copyConfig.customWordCount} words (±10% range: ${Math.round(copyConfig.customWordCount * 0.9)}–${Math.round(copyConfig.customWordCount * 1.1)} words)`;
   }
-
-  const sectionsFormatted = copyConfig.selectedSections
-    .map((s) => `  - ${s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}`)
-    .join('\n');
-
-  const emphasisFormatted = copyConfig.contentEmphasis
-    .map((e) => `  - ${e}`)
-    .join('\n');
 
   const restrictionsFormatted = [
     ...copyConfig.requiredInfoAndRestrictions,
     ...(copyConfig.customRestrictions ? [copyConfig.customRestrictions] : [])
   ].map((r) => `  - ${r}`).join('\n');
 
-  const activeRules = (editorialRules && editorialRules.trim()) ? editorialRules.trim() : DEFAULT_EDITORIAL_RULES;
-
   return `# EDITORIAL WRITING BRIEF: ${workingName}
 **Science of Gifts — Editorial Intelligence Studio**
 *Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}*
 
----
-
-### EDITORIAL PRECEDENCE POLICY
-1. **Verified Physical Facts (Highest Precedence):** Physical specifications, fabrics, and dimensions below must never be contradicted or embellished.
-2. **Global Editorial Rules:** Apply automatically to style, tone, em-dash prohibitions, and quality standards.
-3. **Product-Specific Editorial Choices:** Specific interpretations, angles, word count, and sections chosen below direct this entry's creative focus.
+*(Note: Strategic rationale and recipient background below are provided as contextual guidance to help you understand the product. Communicate the useful result of this context in natural copy without reproducing analytical frameworks or copying strategic jargon.)*
 
 ---
 
@@ -141,12 +128,12 @@ ${specsList.length > 0 ? specsList.map((s) => `  - ${s}`).join('\n') : '  - None
 - **Gift Guide:** ${guideName}
 - **Audience / Niche:** ${details.audienceInterest || 'Passionate enthusiasts & cultural collectors'}
 - **Occasion:** ${details.occasion || 'General gifting'}
-- **Core Role in Guide:** Distinctive, high-integrity gift recommendation rejecting commercial gift clichés in favor of genuine craft and meaningful design.
+- **Core Role in Guide:** Distinctive gift recommendation tailored to the recipient's specific passion.
 
-### 3. SELECTED DESIGN INTERPRETATION & CREATIVE ANGLE
-- **Distinctive Concept & Interpretation:**
-${interpretations.length > 0 ? interpretations.map((i) => `  - ${i}`).join('\n') : '  - Thoughtful design rooted in specialized cultural literacy.'}
-- **Approved Creative Angle(s):**
+### 3. CREATIVE DIRECTION & DESIGN CONTEXT
+- **Central Concept & Design Interpretation:**
+${interpretations.length > 0 ? interpretations.map((i) => `  - ${i}`).join('\n') : '  - Thoughtful design rooted in specialized audience interest.'}
+- **Creative Focus / Angle:**
 ${angles.length > 0 ? angles.map((a) => `  - ${a}`).join('\n') : '  - Specificity-led insider appreciation.'}
 ${details.knownDesignReferences ? `- **Design References:** ${details.knownDesignReferences}` : ''}
 
@@ -154,64 +141,58 @@ ${details.knownDesignReferences ? `- **Design References:** ${details.knownDesig
 - **Target Recipient(s):**
 ${recipients.length > 0 ? recipients.map((r) => `  - ${r}`).join('\n') : '  - Dedicated enthusiasts and thoughtful recipients.'}
 - **Knowledge Depth:** ${analysisResult?.recipientIntelligence?.knowledgeDepth || 'Enthusiast level; deeply appreciates authentic details.'}
-- **Gift Buyer's Motivation:** Demonstrate genuine understanding of the recipient's specific passion rather than settling for generic novelty items.
 ${analysisResult?.recipientIntelligence?.audienceMismatches?.length ? `- **Who NOT to Buy This For:** ${analysisResult.recipientIntelligence.audienceMismatches.join('; ')}` : ''}
 
-### 5. COPY SPECIFICATIONS & STRUCTURE
-- **Writing Style:** ${copyConfig.writingStyle.toUpperCase()} ${copyConfig.customStyleDescription ? `(${copyConfig.customStyleDescription})` : ''}
-- **Target Word Count:** ${lengthDesc}
-- **Output Format:** ${copyConfig.outputFormat === 'prose' ? 'Flowing prose paragraphs' : 'Structured multi-section entry with clear subheadings'}
-- **Required Content Sections:**
-${sectionsFormatted || '  - Flowing prose covering opening, design meaning, recipient fit, and verified details.'}
-- **Priority Emphasis:**
-${emphasisFormatted || '  - Design interpretation & recipient fit'}
-${copyConfig.seoKeywords ? `- **SEO Search Intent Keywords:** ${copyConfig.seoKeywords}` : ''}
+### 5. COPY SPECIFICATIONS & FORMAT
+- **Writing Tone / Style:** ${copyConfig.writingStyle.toUpperCase()} ${copyConfig.customStyleDescription ? `(${copyConfig.customStyleDescription})` : ''}
+- **Target Word Count Range:** ${lengthDesc}
+- **Output Format:** ${copyConfig.outputFormat === 'prose' ? 'Flowing prose paragraphs' : 'Structured entry with subheadings'}
+${copyConfig.seoKeywords ? `- **SEO Keywords:** ${copyConfig.seoKeywords}` : ''}
 
-### 6. GLOBAL EDITORIAL RULES & GUARDRAILS
-${activeRules}
-
-### 7. PRODUCT-SPECIFIC GUARDRAILS & UNCERTAINTIES
-- **Mandatory Product Restrictions:**
-${restrictionsFormatted}
-- **Uncertainties & Information Not Verified — DO NOT INVENT:**
-${uncertainties.length > 0 ? uncertainties.map((u) => `  - ⚠️ ${u}`).join('\n') : '  - ⚠️ Do not invent unverified materials, features, or historical lore.'}
-${copyConfig.customInstructions ? `\n### 8. OPTIONAL CAMPAIGN INSTRUCTIONS\n${copyConfig.customInstructions}` : ''}
-`;
+### 6. UNCERTAINTIES & UNVERIFIED CLAIMS — DO NOT INVENT
+${restrictionsFormatted ? `- **Mandatory Restrictions:**\n${restrictionsFormatted}\n` : ''}${uncertainties.length > 0 ? uncertainties.map((u) => `  - ⚠️ ${u}`).join('\n') : '  - ⚠️ Do not invent unverified materials, features, historical lore, or provenance.'}
+${copyConfig.customInstructions ? `\n### 7. ADDITIONAL CAMPAIGN INSTRUCTIONS\n${copyConfig.customInstructions}` : ''}`;
 }
 
 /**
- * Formats a prompt tailored specifically for ChatGPT (GPT-4o / GPT-4.5) using the single Editorial Rules.
+ * Formats a prompt tailored specifically for ChatGPT (GPT-4o / GPT-4.5) with a clear 3-layer architecture.
  */
 export function formatPromptForChatGPT(briefMarkdown: string, editorialRules?: string | null): string {
   const activeRules = (editorialRules && editorialRules.trim()) ? editorialRules.trim() : DEFAULT_EDITORIAL_RULES;
 
-  return `You are the master editorial writer and copy chief for "Science of Gifts", an authoritative gift-guide publication.
-Write a finished, publication-ready gift-guide product entry based strictly on the following Editorial Brief and Global Editorial Rules.
+  return `You write product entries for Science of Gifts, a gift-guide website that helps people choose thoughtful gifts for recipients with specific interests.
 
-EDITORIAL PRECEDENCE POLICY:
-1. Verified Physical Product Facts have HIGHEST PRECEDENCE. Never contradict verified specifications.
-2. Global Editorial Rules govern voice, tone, formatting, and strict prohibitions.
-3. Explicit choices in the Editorial Brief dictate the creative angle, target recipient, word count, and sections.
+Write a finished, publication-ready gift-guide product entry based on the Global Editorial Rules and Editorial Brief below.
 
-CRITICAL INSTRUCTIONS:
-1. Adhere strictly to the target word count and output structure specified in the brief.
-2. Open with a concrete, distinctive observation or interpretation of the product design. Never open with a generic question ("Looking for the perfect gift?") or promotional slogan.
-3. Address the gift-buyer while respecting the recipient's knowledge depth.
-4. Seamlessly integrate verified specifications as supporting evidence.
-5. STRICT NEGATIVE CONSTRAINTS:
-   - Absolutely DO NOT use em-dashes ("—"). Use commas, parentheses, or separate sentences instead.
-   - Absolutely DO NOT invent physical specifications, material properties, or historical provenance beyond what is provided in the brief.
-   - Do NOT include any self-evaluation, metadata, markdown commentary, or introductory greeting. Return ONLY the finished product copy.
-
-=========================
-GLOBAL EDITORIAL RULES
-=========================
+=========================================
+LAYER 1: GLOBAL EDITORIAL RULES
+=========================================
 ${activeRules}
 
-=========================
-EDITORIAL BRIEF
-=========================
+=========================================
+LAYER 2: PRODUCT-SPECIFIC EDITORIAL BRIEF
+=========================================
 ${briefMarkdown}
+
+=========================================
+LAYER 3: OUTPUT REQUIREMENTS & TASK INSTRUCTIONS
+=========================================
+1. PRECEDENCE POLICY:
+   - Verified physical facts have HIGHEST PRECEDENCE. Never contradict verified specifications.
+   - Global Editorial Rules govern voice, tone, style, and prohibitions.
+   - The Editorial Brief dictates product identity, recipient context, and word count.
+
+2. WRITING & STRUCTURE INSTRUCTIONS:
+   - Open directly with a concrete design detail, recognizable experience, or inside joke relevant to the recipient.
+   - Write in flowing prose paragraphs unless subheadings are explicitly requested.
+   - Treat opening details, design appeal, and recipient fit as a natural flow rather than separate rigid essay paragraphs.
+   - Aim for the target word count range naturally without repeating ideas, inventing additional interpretations, or adding filler to reach the upper limit.
+   - Communicate the useful result of the analysis without explaining the underlying thought process or strategic reasoning.
+
+3. STRICT NEGATIVE CONSTRAINTS:
+   - Absolutely DO NOT use em-dashes ("—"). Use commas, periods, or parentheses instead.
+   - Absolutely DO NOT invent physical specifications, material composition, prices, or provenance beyond what is explicitly provided.
+   - Return ONLY the finished product copy. Do not include introductory pleasantries, self-evaluations, or metadata commentary.
 `;
 }
 
@@ -221,14 +202,14 @@ ${briefMarkdown}
 export function formatPromptForClaude(briefMarkdown: string, editorialRules?: string | null): string {
   const activeRules = (editorialRules && editorialRules.trim()) ? editorialRules.trim() : DEFAULT_EDITORIAL_RULES;
 
-  return `You are the master editorial writer for Science of Gifts, an authoritative publication that curates products for passionate cultural, historical, and intellectual niches.
+  return `You write product entries for Science of Gifts, a gift-guide website that helps people choose thoughtful gifts for recipients with specific interests.
 
-Your assignment is to write the final editorial product entry following the enclosed editorial brief with exacting fidelity.
+Your assignment is to write a finished, publication-ready editorial product entry following the Global Editorial Rules and Product Brief below.
 
 <precedence_policy>
 1. Verified physical product facts strictly override creative interpretations.
-2. Global editorial rules apply across all entries.
-3. Product-specific brief configurations dictate the focus and structure.
+2. Global editorial rules govern voice, tone, grounded style, and prohibitions.
+3. Product-specific brief configurations dictate the context and target length.
 </precedence_policy>
 
 <global_editorial_rules>
@@ -239,14 +220,14 @@ ${activeRules}
 ${briefMarkdown}
 </editorial_brief>
 
-<constraints>
-1. Word Count: Strictly obey the word count range declared in the brief.
-2. Em-Dash Ban: You must NOT use any em-dashes ("—"). Use commas, periods, or parentheses instead.
-3. Opening Rule: Open directly with the most distinctive, supportable observation about the product. Never use cliché openings such as "Looking for the perfect gift?" or "Whether you're shopping for...".
-4. Factual Integrity: Introduce only the verified facts and specifications explicitly confirmed in the brief. Do not speculate or invent unverified product claims.
-5. Audience Balance: Speak directly to the thoughtful gift-buyer while treating the recipient's niche interest with genuine respect and nuance.
-6. Output Format: Return only the finished copy. Do not wrap in introductory pleasantries, explanations, or concluding analysis.
-</constraints>
+<output_requirements>
+1. Word Count & Length: Aim for the target word count range without repeating ideas, adding filler, or forcing additional paragraphs. Stop naturally when the thought is complete.
+2. Prose Structure: Use flowing prose paragraphs unless subheadings are explicitly requested. Do not force separate paragraphs for every analytical category.
+3. Grounded Voice: Write like a knowledgeable person explaining an interesting gift to someone who understands the subject. Use natural, everyday English.
+4. Em-Dash Ban: Absolutely DO NOT use any em-dashes ("—"). Use commas, periods, or parentheses instead.
+5. Factual Integrity: Introduce only verified facts confirmed in the brief. Do not speculate or invent unverified product features or claims.
+6. Clean Output: Return ONLY the finished product copy. Do not wrap in introductory pleasantries, markdown commentary, or concluding notes.
+</output_requirements>
 
 Write the finished product copy now:`;
 }

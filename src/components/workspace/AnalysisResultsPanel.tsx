@@ -217,9 +217,11 @@ export const AnalysisResultsPanel: React.FC<AnalysisResultsPanelProps> = ({
   const handleCopyBrief = () => {
     if (!analysis?.writingBrief) return;
     const md = formatWritingBriefMarkdown(analysis.writingBrief);
-    navigator.clipboard.writeText(md);
-    setCopiedBrief(true);
-    setTimeout(() => setCopiedBrief(false), 2500);
+    if (navigator?.clipboard) {
+      navigator.clipboard.writeText(md);
+      setCopiedBrief(true);
+      setTimeout(() => setCopiedBrief(false), 2500);
+    }
   };
 
 
@@ -288,9 +290,11 @@ export const AnalysisResultsPanel: React.FC<AnalysisResultsPanelProps> = ({
   };
 
   const handleCopySingleTitle = (title: string, id: number | string) => {
-    navigator.clipboard.writeText(title);
-    setCopiedTitleIndex(id);
-    setTimeout(() => setCopiedTitleIndex(null), 2000);
+    if (navigator?.clipboard) {
+      navigator.clipboard.writeText(title);
+      setCopiedTitleIndex(id);
+      setTimeout(() => setCopiedTitleIndex(null), 2000);
+    }
   };
 
   const handleApplyTitle = (title: string) => {
@@ -309,11 +313,12 @@ export const AnalysisResultsPanel: React.FC<AnalysisResultsPanelProps> = ({
   const filteredTitleOptions = useMemo(() => {
     return combinedTitleOptions.filter((opt) => {
       const matchesFilter = selectedStrategyFilter === 'all' || opt.strategicApproach === selectedStrategyFilter;
+      const query = titleSearchQuery.trim().toLowerCase();
       const matchesSearch =
-        !titleSearchQuery.trim() ||
-        opt.proposedTitle.toLowerCase().includes(titleSearchQuery.toLowerCase()) ||
-        opt.intendedAudience.toLowerCase().includes(titleSearchQuery.toLowerCase()) ||
-        opt.strengths.toLowerCase().includes(titleSearchQuery.toLowerCase());
+        !query ||
+        Boolean(opt.proposedTitle?.toLowerCase().includes(query)) ||
+        Boolean(opt.intendedAudience?.toLowerCase().includes(query)) ||
+        Boolean(opt.strengths?.toLowerCase().includes(query));
       return matchesFilter && matchesSearch;
     });
   }, [combinedTitleOptions, selectedStrategyFilter, titleSearchQuery]);

@@ -15,7 +15,8 @@ import {
   ComparisonFeedback,
   GuidePlanRecord,
   WritingGuidelinesSettings,
-  ApprovedWritingExample
+  ApprovedWritingExample,
+  SharedWorkingContext
 } from './types';
 import { INITIAL_WRITING_GUIDELINES, INITIAL_WRITING_EXAMPLES_LIST } from './data/initialWritingGuidelines';
 import { DEFAULT_EDITORIAL_RULES } from './data/defaultEditorialRules';
@@ -80,6 +81,7 @@ export default function App() {
   const [writingExamples, setWritingExamples] = useState<ApprovedWritingExample[]>(INITIAL_WRITING_EXAMPLES_LIST);
   const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL_ID);
   const [apiConnected, setApiConnected] = useState<boolean | null>(null);
+  const [workflowSessionKey, setWorkflowSessionKey] = useState<number>(0);
 
   // Modal pair state
   const [activeComparisonPair, setActiveComparisonPair] = useState<{
@@ -313,13 +315,14 @@ export default function App() {
     }
   };
 
-  const handleSaveToActiveProfile = async () => {
+  const handleSaveToActiveProfile = async (contextToSave?: SharedWorkingContext) => {
     if (!activeProfileId) return;
     const target = contextProfiles.find((p) => p.id === activeProfileId);
     if (!target) return;
+    const ctx = contextToSave || currentSharedContext;
     const updated: ContextProfile = {
       ...target,
-      context: currentSharedContext,
+      context: ctx,
       updatedAt: new Date().toISOString()
     };
     await dbService.saveContextProfile(updated);
@@ -327,14 +330,15 @@ export default function App() {
     showToast(`Saved changes to profile "${updated.name}"`);
   };
 
-  const handleCreateProfile = async (name: string, description: string) => {
+  const handleCreateProfile = async (name: string, description: string, contextToSave?: SharedWorkingContext) => {
+    const ctx = contextToSave || currentSharedContext;
     const newProfile: ContextProfile = {
       id: 'profile_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36),
       name,
       description,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      context: currentSharedContext,
+      context: ctx,
       isDefault: false
     };
     await dbService.saveContextProfile(newProfile);
@@ -419,7 +423,8 @@ export default function App() {
   const handleNewProduct = () => {
     setCurrentProductId(null);
     // Keep shared guide and recipient fields; reset only product-specific inputs
-    setDetails((prev) => createNewProductDetailsWithContext(extractSharedContext(prev)));
+    const contextToPreserve = activeProfile ? activeProfile.context : currentSharedContext;
+    setDetails(createNewProductDetailsWithContext(contextToPreserve));
     setImageBlob(undefined);
     setImageBase64('');
     setImageDataUrl(undefined);
@@ -427,6 +432,7 @@ export default function App() {
     setImageSize(0);
     setAnalysisResult(null);
     setAnalysisError(null);
+    setWorkflowSessionKey((k) => k + 1);
     setActiveTab('workspace');
     showToast('New product started · Shared guide & recipient context preserved');
   };
@@ -586,6 +592,7 @@ export default function App() {
     setAnalysisMode(product.mode);
     setAnalysisResult(product.analysisResult || null);
     setAnalysisError(null);
+    setWorkflowSessionKey((k) => k + 1);
     setActiveTab('workspace');
     showToast(`Loaded "${product.details.workingName || 'Product'}" into Workspace`);
   };
@@ -735,7 +742,10 @@ export default function App() {
         {/* Guided 6-Step Product Copy Workflow */}
         {activeTab === 'workspace' && (
           <GuidedWorkflowView
+            key={currentProductId || `workspace-session-${workflowSessionKey}`}
             currentProduct={products.find((p) => p.id === currentProductId) || null}
+            details={details}
+            onDetailsChange={setDetails}
             onSaveProduct={async (record) => {
               await dbService.saveProduct(record);
               setCurrentProductId(record.id);

@@ -196,22 +196,23 @@ export const GuideDetailEditor: React.FC<GuideDetailEditorProps> = ({
   };
 
   const handleMoveLineupItem = (index: number, direction: 'up' | 'down') => {
-    const newItems = [...currentPlan.lineup];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= newItems.length) return;
+    if (targetIndex < 0 || targetIndex >= currentPlan.lineup.length) return;
 
-    const temp = newItems[index];
-    newItems[index] = newItems[targetIndex];
-    newItems[targetIndex] = temp;
+    const reordered = [...currentPlan.lineup];
+    const temp = reordered[index];
+    reordered[index] = reordered[targetIndex];
+    reordered[targetIndex] = temp;
 
-    // Reassign sort orders
-    newItems.forEach((item, idx) => {
-      item.sortOrder = idx + 1;
-    });
+    // Return new object references for the modified items instead of mutating
+    const updatedLineup = reordered.map((item, idx) => ({
+      ...item,
+      sortOrder: idx + 1
+    }));
 
     const updated = {
       ...currentPlan,
-      lineup: newItems,
+      lineup: updatedLineup,
       updatedAt: new Date().toISOString()
     };
     setCurrentPlan(updated);
@@ -274,10 +275,14 @@ export const GuideDetailEditor: React.FC<GuideDetailEditorProps> = ({
 
   const handleCopyPrompt = () => {
     if (!currentPlan.generatedPrompt) return;
-    navigator.clipboard.writeText(currentPlan.generatedPrompt.promptText);
-    setCopiedPrompt(true);
-    setTimeout(() => setCopiedPrompt(false), 3000);
-    showToast('ChatGPT prompt copied to clipboard');
+    if (navigator?.clipboard) {
+      navigator.clipboard.writeText(currentPlan.generatedPrompt.promptText);
+      setCopiedPrompt(true);
+      setTimeout(() => setCopiedPrompt(false), 3000);
+      showToast('ChatGPT prompt copied to clipboard');
+    } else {
+      showToast('Clipboard access not available in this environment', 'error');
+    }
   };
 
   const productMap = new Map<string, ProductRecord>();

@@ -23,7 +23,7 @@ import {
   Layers,
   FileCheck2
 } from 'lucide-react';
-import { ProductDetailsInput, ProductType, GiftGuide, ContextProfile } from '../../types';
+import { ProductDetailsInput, ProductType, GiftGuide, ContextProfile, SharedWorkingContext } from '../../types';
 import { UploadedImageItem } from '../../types/workflow';
 import { processImageUpload } from '../../utils/imageUtils';
 import { ContextProfileBar } from '../workspace/ContextProfileBar';
@@ -48,8 +48,8 @@ interface Step1ProductInputProps {
   activeProfileId: string | null;
   isContextModified: boolean;
   onSelectProfile: (profileId: string | null) => void;
-  onSaveToActiveProfile: () => Promise<void>;
-  onCreateProfile: (name: string, description: string) => Promise<void>;
+  onSaveToActiveProfile: (contextToSave?: SharedWorkingContext) => Promise<void>;
+  onCreateProfile: (name: string, description: string, contextToSave?: SharedWorkingContext) => Promise<void>;
   onRenameProfile: (id: string, newName: string, newDescription?: string) => Promise<void>;
   onDuplicateProfile: (id: string) => Promise<void>;
   onDeleteProfile: (id: string) => Promise<void>;

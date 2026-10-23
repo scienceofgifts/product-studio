@@ -22,7 +22,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 function getGeminiClient() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -395,7 +395,7 @@ async function ensureSampleEntryWordCountRange(ai: GoogleGenAI, model: string, b
     
     try {
       const revisionPrompt = `
-You are the master editorial writer for Science of Gifts.
+You write product entries for Science of Gifts, a gift-guide website that helps people choose thoughtful gifts for recipients with specific interests.
 The following draft editorial entry has a word count of ${wordCount} words, which violates our required length range of 180 to 240 words (target 210 words).
 Please ${direction} to bring the word count strictly between 180 and 240 words.
 Rules:
@@ -570,9 +570,8 @@ async function startServer() {
         : DEFAULT_EDITORIAL_RULES;
 
       const systemInstruction = `
-You are the senior editorial intelligence architect, product-positioning strategist, and master editorial writer for "Science of Gifts".
-Science of Gifts is an authoritative editorial gift-guide publication with a curated print-on-demand shop.
-Unlike conventional ecommerce stores selling generic commodity goods, Science of Gifts develops and curates products for highly specific passions (e.g. Viking history, American Civil War, WWII aviation, classical literature, teaching history, auteur cinema) and helps gift buyers find deeply meaningful, intellectually credible gifts.
+You write product entries for Science of Gifts, a gift-guide website that helps people choose thoughtful gifts for recipients with specific interests.
+Science of Gifts develops and curates products for highly specific passions (e.g. Viking history, American Civil War, WWII aviation, classical literature, teaching history, content creation) and helps gift buyers find deeply meaningful gifts.
 
 EDITORIAL PRECEDENCE POLICY (CRITICAL):
 1. Verified Physical Product Facts have HIGHEST PRECEDENCE. Never override or contradict verified facts (materials, dimensions, colors, verified specifications) with creative or editorial assumptions.

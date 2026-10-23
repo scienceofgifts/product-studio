@@ -28,8 +28,8 @@ interface ContextProfileBarProps {
   isModified: boolean;
   workingContext: SharedWorkingContext;
   onSelectProfile: (profileId: string | null, force?: boolean) => void;
-  onSaveToActiveProfile: () => Promise<void>;
-  onCreateProfile: (name: string, description: string) => Promise<void>;
+  onSaveToActiveProfile: (contextToSave?: SharedWorkingContext) => Promise<void>;
+  onCreateProfile: (name: string, description: string, contextToSave?: SharedWorkingContext) => Promise<void>;
   onRenameProfile: (id: string, newName: string, newDescription?: string) => Promise<void>;
   onDuplicateProfile: (id: string) => Promise<void>;
   onDeleteProfile: (id: string) => Promise<void>;
@@ -112,7 +112,7 @@ export const ContextProfileBar: React.FC<ContextProfileBarProps> = ({
     if (!profileNameInput.trim()) return;
     setIsSubmitting(true);
     try {
-      await onCreateProfile(profileNameInput.trim(), profileDescInput.trim());
+      await onCreateProfile(profileNameInput.trim(), profileDescInput.trim(), workingContext);
       setModalType(null);
     } finally {
       setIsSubmitting(false);
@@ -148,7 +148,7 @@ export const ContextProfileBar: React.FC<ContextProfileBarProps> = ({
   const handleSaveAndSwitch = async () => {
     setIsSubmitting(true);
     try {
-      await onSaveToActiveProfile();
+      await onSaveToActiveProfile(workingContext);
       onSelectProfile(pendingSwitchProfileId);
       setModalType(null);
     } finally {
@@ -307,8 +307,8 @@ export const ContextProfileBar: React.FC<ContextProfileBarProps> = ({
         {activeProfile && isModified && (
           <button
             type="button"
-            onClick={onSaveToActiveProfile}
-            className="flex items-center gap-1 px-2 py-1 text-xs font-semibold text-white bg-amber-700 hover:bg-amber-800 rounded-md transition-colors shadow-2xs"
+            onClick={() => onSaveToActiveProfile(workingContext)}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-semibold text-white bg-amber-700 hover:bg-amber-800 rounded-md transition-colors shadow-2xs cursor-pointer"
             title={`Save changes directly to '${activeProfile.name}'`}
           >
             <Save className="w-3 h-3" />

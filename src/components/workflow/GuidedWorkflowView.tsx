@@ -18,7 +18,8 @@ import {
   ProductDetailsInput,
   StructuredAnalysisResult,
   GiftGuide,
-  ContextProfile
+  ContextProfile,
+  SharedWorkingContext
 } from '../../types';
 import { Step1ProductInput } from './Step1ProductInput';
 import { Step2AnalysisFindings } from './Step2AnalysisFindings';
@@ -43,6 +44,8 @@ import {
 
 interface GuidedWorkflowViewProps {
   currentProduct: ProductRecord | null;
+  details: ProductDetailsInput;
+  onDetailsChange: (details: ProductDetailsInput) => void;
   onSaveProduct: (record: ProductRecord) => Promise<void>;
   catalogueProducts: ProductRecord[];
   giftGuides: GiftGuide[];
@@ -54,8 +57,8 @@ interface GuidedWorkflowViewProps {
   activeProfileId: string | null;
   isContextModified: boolean;
   onSelectProfile: (profileId: string | null) => void;
-  onSaveToActiveProfile: () => Promise<void>;
-  onCreateProfile: (name: string, description: string) => Promise<void>;
+  onSaveToActiveProfile: (contextToSave?: SharedWorkingContext) => Promise<void>;
+  onCreateProfile: (name: string, description: string, contextToSave?: SharedWorkingContext) => Promise<void>;
   onRenameProfile: (id: string, newName: string, newDescription?: string) => Promise<void>;
   onDuplicateProfile: (id: string) => Promise<void>;
   onDeleteProfile: (id: string) => Promise<void>;
@@ -75,6 +78,8 @@ const STEP_LABELS: { step: WorkflowStep; label: string; desc: string }[] = [
 
 export const GuidedWorkflowView: React.FC<GuidedWorkflowViewProps> = ({
   currentProduct,
+  details,
+  onDetailsChange,
   onSaveProduct,
   catalogueProducts,
   giftGuides,
@@ -122,23 +127,7 @@ export const GuidedWorkflowView: React.FC<GuidedWorkflowViewProps> = ({
       currentStep: hasAnalysis ? 2 : 1,
       highestStepReached: hasAnalysis ? 2 : 1,
       images: initialImages,
-      details: currentProduct?.details || {
-        workingName: '',
-        productType: 'mug',
-        giftGuideId: '',
-        giftGuideName: '',
-        primaryRecipient: '',
-        secondaryRecipient: '',
-        audienceInterest: '',
-        occasion: '',
-        productUrl: '',
-        currentTitle: '',
-        currentDescription: '',
-        productSpecs: '',
-        knownDesignReferences: '',
-        initialPositioningIdea: '',
-        specificQuestions: ''
-      },
+      details: currentProduct?.details || details,
       analysisResult: currentProduct?.analysisResult || null,
       editorialSelections: DEFAULT_EDITORIAL_SELECTIONS,
       copyConfig: DEFAULT_COPY_CONFIG,
@@ -153,6 +142,17 @@ export const GuidedWorkflowView: React.FC<GuidedWorkflowViewProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  // Sync details from parent when changed externally (e.g. profile selected, reset, or new product)
+  useEffect(() => {
+    setWorkflowState((prev) => {
+      if (prev.details === details) return prev;
+      return {
+        ...prev,
+        details
+      };
+    });
+  }, [details]);
 
   // Sync state if a different product is loaded from the library
   useEffect(() => {
@@ -223,11 +223,12 @@ export const GuidedWorkflowView: React.FC<GuidedWorkflowViewProps> = ({
   };
 
   // Step 1: Details Change
-  const handleDetailsChange = (details: ProductDetailsInput) => {
+  const handleDetailsChange = (newDetails: ProductDetailsInput) => {
     setWorkflowState((prev) => ({
       ...prev,
-      details
+      details: newDetails
     }));
+    onDetailsChange(newDetails);
   };
 
   // Run Analysis (Step 1 -> Step 2)

@@ -19,6 +19,7 @@ import { INITIAL_CONTEXT_PROFILES } from '../data/initialContextProfiles';
 import { INITIAL_WRITING_GUIDELINES, INITIAL_WRITING_EXAMPLES_LIST } from '../data/initialWritingGuidelines';
 import { DEFAULT_MODEL_ID, resolveModelId } from '../config/models';
 import { DEFAULT_EDITORIAL_RULES, synthesizeEditorialRulesFromLegacy } from '../data/defaultEditorialRules';
+import { EMPTY_SHARED_CONTEXT } from '../utils/contextUtils';
 
 const DB_NAME = 'science_of_gifts_studio_db';
 const DB_VERSION = 6;
@@ -698,16 +699,37 @@ class ProductIntelligenceDB {
     return new Promise((resolve, reject) => {
       try {
         if (!db.objectStoreNames.contains(STORES.CONTEXT_PROFILES)) {
-          resolve([]);
+          resolve(INITIAL_CONTEXT_PROFILES);
           return;
         }
         const tx = db.transaction(STORES.CONTEXT_PROFILES, 'readonly');
         const store = tx.objectStore(STORES.CONTEXT_PROFILES);
         const req = store.getAll();
-        req.onsuccess = () => {
-          const profiles = (req.result as ContextProfile[]) || [];
-          profiles.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-          resolve(profiles);
+        req.onsuccess = async () => {
+          let profiles = (req.result as ContextProfile[]) || [];
+          if (profiles.length === 0) {
+            try {
+              const seedTx = db.transaction(STORES.CONTEXT_PROFILES, 'readwrite');
+              const seedStore = seedTx.objectStore(STORES.CONTEXT_PROFILES);
+              INITIAL_CONTEXT_PROFILES.forEach((p) => seedStore.put(p));
+              profiles = [...INITIAL_CONTEXT_PROFILES];
+            } catch (seedErr) {
+              console.warn('Could not seed initial context profiles:', seedErr);
+              profiles = [...INITIAL_CONTEXT_PROFILES];
+            }
+          }
+
+          // Sanitize every profile so all 10 context fields are guaranteed present
+          const sanitized = profiles.map((p) => ({
+            ...p,
+            context: {
+              ...EMPTY_SHARED_CONTEXT,
+              ...(p.context || {})
+            }
+          }));
+
+          sanitized.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+          resolve(sanitized);
         };
         req.onerror = () => reject(req.error);
       } catch (err) {
@@ -727,7 +749,20 @@ class ProductIntelligenceDB {
         const tx = db.transaction(STORES.CONTEXT_PROFILES, 'readonly');
         const store = tx.objectStore(STORES.CONTEXT_PROFILES);
         const req = store.get(id);
-        req.onsuccess = () => resolve((req.result as ContextProfile) || null);
+        req.onsuccess = () => {
+          const item = req.result as ContextProfile | undefined;
+          if (!item) {
+            resolve(null);
+            return;
+          }
+          resolve({
+            ...item,
+            context: {
+              ...EMPTY_SHARED_CONTEXT,
+              ...(item.context || {})
+            }
+          });
+        };
         req.onerror = () => reject(req.error);
       } catch (err) {
         reject(err);
@@ -743,6 +778,10 @@ class ProductIntelligenceDB {
         const store = tx.objectStore(STORES.CONTEXT_PROFILES);
         const toSave: ContextProfile = {
           ...profile,
+          context: {
+            ...EMPTY_SHARED_CONTEXT,
+            ...(profile.context || {})
+          },
           updatedAt: new Date().toISOString()
         };
         const req = store.put(toSave);
@@ -780,7 +819,11 @@ class ProductIntelligenceDB {
       name: `${original.name} (Copy)`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      isDefault: false
+      isDefault: false,
+      context: {
+        ...EMPTY_SHARED_CONTEXT,
+        ...(original.context || {})
+      }
     };
 
     await this.saveContextProfile(duplicated);
@@ -801,7 +844,10 @@ class ProductIntelligenceDB {
         req.onsuccess = () => {
           if (req.result && req.result.context) {
             resolve({
-              context: req.result.context,
+              context: {
+                ...EMPTY_SHARED_CONTEXT,
+                ...req.result.context
+              },
               activeProfileId: req.result.activeProfileId ?? null
             });
           } else {
@@ -828,7 +874,10 @@ class ProductIntelligenceDB {
         const store = tx.objectStore(STORES.WORKING_CONTEXT);
         const req = store.put({
           id: 'active_working_context',
-          context,
+          context: {
+            ...EMPTY_SHARED_CONTEXT,
+            ...context
+          },
           activeProfileId,
           savedAt: new Date().toISOString()
         });
