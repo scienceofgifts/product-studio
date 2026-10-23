@@ -4,16 +4,12 @@
  */
 
 import {
-  jsonResponse,
   handleOptionsRequest,
   ALLOWED_MODELS,
   PREFERRED_DEFAULT_MODEL,
-  PREFERRED_FALLBACK_MODEL
-} from '../../src/services/geminiServerUtils.js';
-
-interface Env {
-  GEMINI_API_KEY?: string;
-}
+  PREFERRED_FALLBACK_MODEL,
+  Env
+} from '../_common.js';
 
 export async function onRequestOptions() {
   return handleOptionsRequest();
@@ -21,7 +17,7 @@ export async function onRequestOptions() {
 
 export async function onRequestGet(context: { env: Env }) {
   const hasKey = Boolean(context.env.GEMINI_API_KEY);
-  return jsonResponse({
+  return Response.json({
     status: 'ok',
     hasApiKey: hasKey,
     defaultModel: PREFERRED_DEFAULT_MODEL,

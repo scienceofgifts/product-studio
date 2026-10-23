@@ -4,14 +4,10 @@
  */
 
 import {
-  jsonResponse,
-  handleOptionsRequest
-} from '../../src/services/geminiServerUtils.js';
+  handleOptionsRequest,
+  Env
+} from '../_common.js';
 import { fetchAndExtractProductFacts } from '../../src/services/productFactsService.js';
-
-interface Env {
-  GEMINI_API_KEY?: string;
-}
 
 export async function onRequestOptions() {
   return handleOptionsRequest();
@@ -22,15 +18,15 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
     const body = await context.request.json() as { url?: string };
     const url = body?.url;
     if (!url || typeof url !== 'string' || !url.trim()) {
-      return jsonResponse({ error: 'A valid URL is required.' }, 400);
+      return Response.json({ error: 'A valid URL is required.' }, { status: 400 });
     }
 
     const facts = await fetchAndExtractProductFacts(url.trim());
-    return jsonResponse({ success: true, facts });
+    return Response.json({ success: true, facts });
   } catch (err: any) {
     console.error('URL extraction error:', err);
-    return jsonResponse({
+    return Response.json({
       error: err.message || 'Failed to extract product facts from URL.',
-    }, 500);
+    }, { status: 500 });
   }
 }

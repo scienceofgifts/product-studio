@@ -8,13 +8,9 @@ import {
   PREFERRED_DEFAULT_MODEL,
   PREFERRED_FALLBACK_MODEL,
   isModelAvailabilityError,
-  jsonResponse,
-  handleOptionsRequest
-} from '../../src/services/geminiServerUtils.js';
-
-interface Env {
-  GEMINI_API_KEY?: string;
-}
+  handleOptionsRequest,
+  Env
+} from '../_common.js';
 
 export async function onRequestOptions() {
   return handleOptionsRequest();
@@ -31,7 +27,7 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
     } = body || {};
 
     if (!productA || !productB) {
-      return jsonResponse({ error: 'Both productA and productB are required for comparison.' }, 400);
+      return Response.json({ error: 'Both productA and productB are required for comparison.' }, { status: 400 });
     }
 
     const ai = getGeminiClient(context.env.GEMINI_API_KEY);
@@ -216,7 +212,7 @@ Return a strictly valid JSON object matching the comparison schema.
 
     const comparisonKey = [productA.id, productB.id].sort().join('___');
 
-    return jsonResponse({
+    return Response.json({
       success: true,
       result: {
         id: `comp_ai_${comparisonKey}_${Date.now().toString(36)}`,
@@ -236,9 +232,9 @@ Return a strictly valid JSON object matching the comparison schema.
     });
   } catch (err: any) {
     console.error('Comparison error:', err);
-    return jsonResponse({
+    return Response.json({
       error: err.message || 'Failed to execute multidimensional comparison.',
       details: err.stack,
-    }, 500);
+    }, { status: 500 });
   }
 }

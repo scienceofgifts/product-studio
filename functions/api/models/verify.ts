@@ -4,15 +4,11 @@
  */
 
 import {
-  jsonResponse,
   handleOptionsRequest,
   getGeminiClient,
-  ALLOWED_MODELS
-} from '../../../src/services/geminiServerUtils.js';
-
-interface Env {
-  GEMINI_API_KEY?: string;
-}
+  ALLOWED_MODELS,
+  Env
+} from '../../_common.js';
 
 export async function onRequestOptions() {
   return handleOptionsRequest();
@@ -51,12 +47,12 @@ export async function onRequestPost(context: { env: Env }) {
 
     const lastVerified = new Date().toISOString();
 
-    return jsonResponse({
+    return Response.json({
       success: true,
       lastVerified,
       results,
     });
   } catch (err: any) {
-    return jsonResponse({ error: err.message || 'Failed to verify models.' }, 500);
+    return Response.json({ error: err.message || 'Failed to verify models.' }, { status: 500 });
   }
 }

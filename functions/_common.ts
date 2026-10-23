@@ -4,8 +4,10 @@
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
-import { ChatGPTWritingBrief } from '../types/index.js';
-import { reconcileWritingBriefWithFacts } from './productFactsService.js';
+
+export interface Env {
+  GEMINI_API_KEY?: string;
+}
 
 export function getGeminiClient(apiKey: string | undefined) {
   if (!apiKey) {
@@ -38,11 +40,10 @@ export const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
 };
 
-export function jsonResponse(data: any, status = 200, customHeaders: Record<string, string> = {}) {
-  return new Response(JSON.stringify(data), {
+export function createJsonResponse(data: any, status = 200, customHeaders: Record<string, string> = {}) {
+  return Response.json(data, {
     status,
     headers: {
-      'Content-Type': 'application/json',
       ...corsHeaders,
       ...customHeaders,
     },
@@ -371,7 +372,7 @@ export function validateRecipientIntelligence(rec: any): { isValid: boolean; err
   return { isValid: errors.length === 0, errors };
 }
 
-export async function ensureSampleEntryWordCountRange(ai: GoogleGenAI, model: string, brief: ChatGPTWritingBrief): Promise<ChatGPTWritingBrief> {
+export async function ensureSampleEntryWordCountRange(ai: GoogleGenAI, model: string, brief: any): Promise<any> {
   if (!brief.sampleEditorialEntry) return brief;
 
   let maxRevisions = 2;
@@ -421,7 +422,7 @@ Draft Copy to Revise:
   return brief;
 }
 
-// Schemas
+// Schemas for Gemini responseSchema
 export const visualConceptualSchema = {
   type: Type.OBJECT,
   properties: {

@@ -4,23 +4,19 @@
  */
 
 import {
-  jsonResponse,
   handleOptionsRequest,
   ALLOWED_MODELS,
   PREFERRED_DEFAULT_MODEL,
-  PREFERRED_FALLBACK_MODEL
-} from '../../../src/services/geminiServerUtils.js';
-
-interface Env {
-  GEMINI_API_KEY?: string;
-}
+  PREFERRED_FALLBACK_MODEL,
+  Env
+} from '../../_common.js';
 
 export async function onRequestOptions() {
   return handleOptionsRequest();
 }
 
 export async function onRequestGet(_context: { env: Env }) {
-  return jsonResponse({
+  return Response.json({
     defaultModel: PREFERRED_DEFAULT_MODEL,
     fallbackModel: PREFERRED_FALLBACK_MODEL,
     allowedModels: ALLOWED_MODELS,

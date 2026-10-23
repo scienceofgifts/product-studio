@@ -21,19 +21,15 @@ import {
   competitiveDifferentiationSchema,
   writingBriefSchema,
   scoringSchema,
-  jsonResponse,
-  handleOptionsRequest
-} from '../../src/services/geminiServerUtils.js';
+  handleOptionsRequest,
+  Env
+} from '../_common.js';
 import {
   fetchAndExtractProductFacts,
   formatProductFactsForWriter,
   reconcileWritingBriefWithFacts
 } from '../../src/services/productFactsService.js';
 import { DEFAULT_EDITORIAL_RULES } from '../../src/data/defaultEditorialRules.js';
-
-interface Env {
-  GEMINI_API_KEY?: string;
-}
 
 export async function onRequestOptions() {
   return handleOptionsRequest();
@@ -62,10 +58,9 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
     }
 
     if (allImages.length === 0 && !details) {
-      return jsonResponse({ error: 'Either a product image or product details are required.' }, 400);
+      return Response.json({ error: 'Either a product image or product details are required.' }, { status: 400 });
     }
 
-    // Ensure facts are present or auto-fetch server-side if URL is provided
     let effectiveFacts = clientFacts || details?.extractedFacts;
     if (!effectiveFacts && details?.productUrl && details.productUrl.startsWith('http')) {
       try {
@@ -299,16 +294,15 @@ Ensure every field is thoroughly reasoned, human-sounding, and rigorously ground
 
     const requestedModel = modelName || PREFERRED_DEFAULT_MODEL;
     if (!ALLOWED_MODELS.includes(requestedModel)) {
-      return jsonResponse({
+      return Response.json({
         error: `Requested model '${requestedModel}' is not in the approved server-side allowlist. Approved models: ${ALLOWED_MODELS.join(', ')}`,
-      }, 400);
+      }, { status: 400 });
     }
 
     let actualModel = requestedModel;
     let fallbackOccurred = false;
     let fallbackReason: string | undefined = undefined;
 
-    // Construct mode-specific responseSchema
     let targetSchema: any;
     if (mode === 'title') {
       targetSchema = {
@@ -470,7 +464,6 @@ Ensure every field is thoroughly reasoned, human-sounding, and rigorously ground
           validationResult = { isValid: false, errors: ['Missing writingBrief in model response'] };
         }
       } else {
-        // Full analysis mode
         if (parsed && parsed.writingBrief && parsed.titleLaboratory) {
           parsed.writingBrief = reconcileWritingBriefWithFacts(parsed.writingBrief, effectiveFacts);
           parsed.writingBrief = await ensureSampleEntryWordCountRange(ai, actualModel, parsed.writingBrief);
@@ -510,12 +503,12 @@ Ensure every field is thoroughly reasoned, human-sounding, and rigorously ground
       ...parsed,
     };
 
-    return jsonResponse({ success: true, result: enrichedResult });
+    return Response.json({ success: true, result: enrichedResult });
   } catch (err: any) {
     console.error('Analysis error:', err);
-    return jsonResponse({
+    return Response.json({
       error: err.message || 'An error occurred during Gemini product analysis.',
       details: err.stack,
-    }, 500);
+    }, { status: 500 });
   }
 }

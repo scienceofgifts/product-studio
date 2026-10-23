@@ -6,13 +6,9 @@
 import {
   getGeminiClient,
   PREFERRED_DEFAULT_MODEL,
-  jsonResponse,
-  handleOptionsRequest
-} from '../../../src/services/geminiServerUtils.js';
-
-interface Env {
-  GEMINI_API_KEY?: string;
-}
+  handleOptionsRequest,
+  Env
+} from '../../_common.js';
 
 export async function onRequestOptions() {
   return handleOptionsRequest();
@@ -29,7 +25,7 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
     } = body || {};
 
     if (!details) {
-      return jsonResponse({ error: 'Product details are required to generate titles.' }, 400);
+      return Response.json({ error: 'Product details are required to generate titles.' }, { status: 400 });
     }
 
     const ai = getGeminiClient(context.env.GEMINI_API_KEY);
@@ -122,9 +118,9 @@ Return a JSON object with 'newTitles' containing an array of title options match
     }
 
     const parsed = JSON.parse(response.text);
-    return jsonResponse({ success: true, newTitles: parsed.newTitles || [] });
+    return Response.json({ success: true, newTitles: parsed.newTitles || [] });
   } catch (err: any) {
     console.error('Generate more titles error:', err);
-    return jsonResponse({ error: err.message || 'Failed to generate additional titles.' }, 500);
+    return Response.json({ error: err.message || 'Failed to generate additional titles.' }, { status: 500 });
   }
 }
