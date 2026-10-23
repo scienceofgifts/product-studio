@@ -12,6 +12,7 @@ import {
   reconcileWritingBriefWithFacts,
 } from './services/productFactsService';
 import { ChatGPTWritingBrief } from './types/index';
+import { DEFAULT_EDITORIAL_RULES } from './data/defaultEditorialRules';
 
 export interface Env {
   GEMINI_API_KEY?: string;
@@ -860,16 +861,23 @@ export default {
         const {
           imageBase64,
           imageMimeType,
+          images,
           details,
           relevantCatalogueEntries,
           mode = 'full',
-          businessBrain,
-          writingGuidelines,
+          editorialRules: clientEditorialRules,
           modelName = 'gemini-3.8-flash',
           extractedFacts: clientFacts,
         } = reqBody;
 
-        if (!imageBase64 && !details) {
+        const allImages: Array<{ imageBase64: string; imageMimeType?: string }> = [];
+        if (Array.isArray(images) && images.length > 0) {
+          allImages.push(...images);
+        } else if (imageBase64) {
+          allImages.push({ imageBase64, imageMimeType });
+        }
+
+        if (allImages.length === 0 && !details) {
           debugTracker.steps.push("Validation failed: no image or details");
           return jsonResponse({
             error: 'Either a product image or product details are required.',
@@ -896,24 +904,32 @@ export default {
         const ai = getGeminiClient(apiKey);
         debugTracker.steps.push("Initialized Gemini client");
 
-        const writingGuidelinesContext = writingGuidelines ? `
-ACTIVE WRITING GUIDELINES & STYLE PROFILES:
-- Universal Guidelines: ${writingGuidelines.universalGuidelines || ''}
-- Voice & Tone: ${writingGuidelines.voiceAndTone || ''}
-- Style & Formatting Rules: ${writingGuidelines.styleAndFormatting || ''}
-- Things to Avoid: ${writingGuidelines.thingsToAvoid || ''}
-- Guardrails: ${writingGuidelines.factualAndEditorialGuardrails || ''}
-` : '';
+        const effectiveEditorialRules = (typeof clientEditorialRules === 'string' && clientEditorialRules.trim())
+          ? clientEditorialRules.trim()
+          : DEFAULT_EDITORIAL_RULES;
 
         const systemInstruction = `
 You are the senior editorial intelligence architect, product-positioning strategist, and master editorial writer for "Science of Gifts".
 Science of Gifts is an authoritative editorial gift-guide publication with a curated print-on-demand shop.
+Unlike conventional ecommerce stores selling generic commodity goods, Science of Gifts develops and curates products for highly specific passions (e.g. Viking history, American Civil War, WWII aviation, classical literature, teaching history, auteur cinema) and helps gift buyers find deeply meaningful, intellectually credible gifts.
 
-ACTIVE BUSINESS BRAIN CONTEXT (Version ${businessBrain?.version || 1}):
-- Business Positioning: ${businessBrain?.businessPositioning || ''}
-- Target Audiences: ${businessBrain?.targetAudiences || ''}
+EDITORIAL PRECEDENCE POLICY (CRITICAL):
+1. Verified Physical Product Facts have HIGHEST PRECEDENCE. Never override or contradict verified facts (materials, dimensions, colors, verified specifications) with creative or editorial assumptions.
+2. Global Editorial Rules apply by default across all entries and briefs.
+3. Explicit Product-Specific Selections & Choices control the creative direction, target recipient, and output format for this specific product.
+4. Detect and surface material contradictions if any exist between product facts and editorial ideas.
 
-${writingGuidelinesContext}
+CRITICAL EDITORIAL REASONING PROCESS (MUST EXECUTE IN ORDER):
+Before generating brief instructions or draft copy, internally reason through these 5 Product-Specific Editorial Steps:
+
+1. Step A — Distinctive Concept: Identify the central concept, joke, visual metaphor, wordplay, historical reference, or symbolism distinguishing this product from generic alternatives.
+2. Step B — Curated Design Details: Select the 2-3 most meaningful details and explain how they work together (NEVER an exhaustive inventory).
+3. Step C — Why the Design Works: Derive a specific editorial interpretation. Explain what makes the design clever, recognizable, amusing, visually effective, or meaningful to its intended audience.
+4. Step D — Buyer-Facing Perspective: Address the gift chooser while making the recipient and product appeal central. Explain why this design appeals to the recipient without generic slogan fluff.
+5. Step E — Verified Facts Selection: Select only verified physical details (fabric weight, composition, dimensions) supporting the entry. Never invent features or production details.
+
+GLOBAL EDITORIAL RULES:
+${effectiveEditorialRules}
 
 TASK:
 Perform structured reasoning for Analysis Mode: "${mode}".
@@ -937,14 +953,17 @@ ${baseProductPrompt}
 `;
 
         const contentsParts: any[] = [];
-        if (imageBase64) {
-          let cleanBase64 = String(imageBase64).trim();
+        for (const img of allImages) {
+          if (!img.imageBase64) continue;
+          let cleanBase64 = String(img.imageBase64).trim();
           while (cleanBase64.startsWith('data:')) {
             cleanBase64 = cleanBase64.replace(/^data:[^;]+;base64,/, '').trim();
           }
+          const validGeminiMimeTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif'];
+          const targetMime = validGeminiMimeTypes.includes(img.imageMimeType || '') ? img.imageMimeType! : 'image/png';
           contentsParts.push({
             inlineData: {
-              mimeType: imageMimeType || 'image/png',
+              mimeType: targetMime,
               data: cleanBase64,
             },
           });
@@ -1133,7 +1152,7 @@ ${baseProductPrompt}
           actualModel: actualModel,
           fallbackOccurred: fallbackOccurred,
           fallbackReason: fallbackReason,
-          businessBrainVersion: businessBrain?.version || 1,
+          editorialRulesApplied: true,
           mode,
           ...parsed,
         };

@@ -68,6 +68,24 @@ export async function testFirestoreConnection(): Promise<boolean> {
   }
 }
 
+// Helper to determine if an error is due to offline status or temporary network/token unavailability
+export function isFirestoreOfflineError(error: unknown): boolean {
+  if (!error) return false;
+  const msg = error instanceof Error ? error.message : String(error);
+  const code = (error as any)?.code || '';
+  return (
+    code === 'unavailable' ||
+    code === 'auth/network-request-failed' ||
+    msg.includes('offline') ||
+    msg.includes('unavailable') ||
+    msg.includes('the client is offline') ||
+    msg.includes('token-service-api-has-not-been-used') ||
+    msg.includes('Could not reach Cloud Firestore backend') ||
+    msg.includes('network-request-failed') ||
+    msg.includes('Failed to fetch')
+  );
+}
+
 // Operation type enum for error tracking
 export enum OperationType {
   CREATE = 'create',
@@ -105,6 +123,11 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
       tenantId: currentUser?.tenantId,
     },
   };
-  console.error('Firestore Error:', JSON.stringify(errInfo));
+  if (isFirestoreOfflineError(error)) {
+    console.warn(`[Firestore Offline] ${operationType} on ${path}: ${errInfo.error}`);
+  } else {
+    console.error('Firestore Error:', JSON.stringify(errInfo));
+  }
   throw new Error(JSON.stringify(errInfo));
 }
+

@@ -15,6 +15,7 @@ import {
   reconcileWritingBriefWithFacts
 } from './src/services/productFactsService.js';
 import { ChatGPTWritingBrief } from './src/types/index.js';
+import { DEFAULT_EDITORIAL_RULES } from './src/data/defaultEditorialRules.js';
 
 dotenv.config();
 
@@ -530,16 +531,23 @@ async function startServer() {
       const {
         imageBase64,
         imageMimeType,
+        images,
         details,
         relevantCatalogueEntries,
         mode = 'full',
-        businessBrain,
-        writingGuidelines,
+        editorialRules: clientEditorialRules,
         modelName = 'gemini-3.8-flash',
         extractedFacts: clientFacts
       } = req.body;
 
-      if (!imageBase64 && !details) {
+      const allImages: Array<{ imageBase64: string; imageMimeType?: string }> = [];
+      if (Array.isArray(images) && images.length > 0) {
+        allImages.push(...images);
+      } else if (imageBase64) {
+        allImages.push({ imageBase64, imageMimeType });
+      }
+
+      if (allImages.length === 0 && !details) {
         return res.status(400).json({ error: 'Either a product image or product details are required.' });
       }
 
@@ -557,19 +565,20 @@ async function startServer() {
 
       const ai = getGeminiClient();
 
-      const writingGuidelinesContext = writingGuidelines ? `
-ACTIVE WRITING GUIDELINES & STYLE PROFILES:
-- Universal Guidelines: ${writingGuidelines.universalGuidelines || ''}
-- Voice & Tone: ${writingGuidelines.voiceAndTone || ''}
-- Style & Formatting Rules: ${writingGuidelines.styleAndFormatting || ''}
-- Things to Avoid: ${writingGuidelines.thingsToAvoid || ''}
-- Guardrails: ${writingGuidelines.factualAndEditorialGuardrails || ''}
-` : '';
+      const effectiveEditorialRules = (typeof clientEditorialRules === 'string' && clientEditorialRules.trim())
+        ? clientEditorialRules.trim()
+        : DEFAULT_EDITORIAL_RULES;
 
       const systemInstruction = `
 You are the senior editorial intelligence architect, product-positioning strategist, and master editorial writer for "Science of Gifts".
 Science of Gifts is an authoritative editorial gift-guide publication with a curated print-on-demand shop.
 Unlike conventional ecommerce stores selling generic commodity goods, Science of Gifts develops and curates products for highly specific passions (e.g. Viking history, American Civil War, WWII aviation, classical literature, teaching history, auteur cinema) and helps gift buyers find deeply meaningful, intellectually credible gifts.
+
+EDITORIAL PRECEDENCE POLICY (CRITICAL):
+1. Verified Physical Product Facts have HIGHEST PRECEDENCE. Never override or contradict verified facts (materials, dimensions, colors, verified specifications) with creative or editorial assumptions.
+2. Global Editorial Rules apply by default across all entries and briefs.
+3. Explicit Product-Specific Selections & Choices control the creative direction, target recipient, and output format for this specific product.
+4. Detect and surface material contradictions if any exist between product facts and editorial ideas.
 
 CRITICAL EDITORIAL REASONING PROCESS (MUST EXECUTE IN ORDER):
 Before generating brief instructions or draft copy, internally reason through these 5 Product-Specific Editorial Steps:
@@ -580,31 +589,8 @@ Before generating brief instructions or draft copy, internally reason through th
 4. Step D — Buyer-Facing Perspective: Address the gift chooser while making the recipient and product appeal central. Explain why this design appeals to the recipient without generic slogan fluff.
 5. Step E — Verified Facts Selection: Select only verified physical details (fabric weight, composition, dimensions) supporting the entry. Never invent features or production details.
 
-EDITORIAL PROSE RULES (CRITICAL):
-- Write natural, perceptive, human-sounding editorial prose.
-- Begin with a concrete observation or interpretation specific to the product.
-- Move from observed details to a meaningful explanation of why they work.
-- Introduce verified specifications naturally as supporting evidence.
-- ABSOLUTE PROHIBITIONS:
-  * DO NOT use em dashes ("—").
-  * DO NOT use generic openings ("Looking for the perfect gift?", "Searching for something special?").
-  * DO NOT use empty praise ("This unique and stylish product is perfect for any occasion").
-  * DO NOT use cliché marketing phrases ("must-have", "guaranteed to impress", "look no further").
-  * DO NOT invent unverified features, intended uses, or historical provenance.
-  * DO NOT list every visual element without interpreting it.
-
-ACTIVE BUSINESS BRAIN CONTEXT (Version ${businessBrain?.version || 1}):
-- Business Positioning: ${businessBrain?.businessPositioning || ''}
-- Target Audiences: ${businessBrain?.targetAudiences || ''}
-- Editorial Rules: ${businessBrain?.editorialVoiceAndRules || ''}
-- Gift Guide Philosophy: ${businessBrain?.giftGuidePhilosophy || ''}
-- Product Positioning Principles: ${businessBrain?.productPositioningPrinciples || ''}
-- SEO Principles: ${businessBrain?.seoPrinciples || ''}
-- Historical Accuracy Mandates: ${businessBrain?.historicalCulturalAccuracy || ''}
-- Prohibited Patterns: ${businessBrain?.prohibitedPatterns || ''}
-- Additional Guidance: ${businessBrain?.additionalInstructions || ''}
-
-${writingGuidelinesContext}
+GLOBAL EDITORIAL RULES:
+${effectiveEditorialRules}
 
 TASK:
 Perform structured reasoning for Analysis Mode: "${mode}".
@@ -776,17 +762,16 @@ Ensure every field is thoroughly reasoned, human-sounding, and rigorously ground
 
       const contentsParts: any[] = [];
 
-      if (imageBase64) {
-        // Repeatedly strip any data: URI header prefixes until pure base64 remains
-        let cleanBase64 = String(imageBase64).trim();
+      for (const img of allImages) {
+        if (!img.imageBase64) continue;
+        let cleanBase64 = String(img.imageBase64).trim();
         while (cleanBase64.startsWith('data:')) {
           cleanBase64 = cleanBase64.replace(/^data:[^;]+;base64,/, '').trim();
         }
 
-        // Gemini inlineData supports image/png, image/jpeg, image/webp, image/heic, image/heif
         const validGeminiMimeTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif'];
-        const targetMime = validGeminiMimeTypes.includes(imageMimeType || '') ? imageMimeType : 'image/png';
-        
+        const targetMime = validGeminiMimeTypes.includes(img.imageMimeType || '') ? img.imageMimeType! : 'image/png';
+
         contentsParts.push({
           inlineData: {
             mimeType: targetMime,
@@ -1322,7 +1307,7 @@ Ensure every field is thoroughly reasoned, human-sounding, and rigorously ground
         actualModel: actualModel,
         fallbackOccurred: fallbackOccurred,
         fallbackReason: fallbackReason,
-        businessBrainVersion: businessBrain?.version || 1,
+        editorialRulesApplied: true,
         mode,
         ...parsed,
       };

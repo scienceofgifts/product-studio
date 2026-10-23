@@ -16,9 +16,20 @@ import {
   onSnapshot,
   Unsubscribe
 } from 'firebase/firestore';
-import { auth, db, handleFirestoreError, OperationType } from './firebase';
+import {
+  auth,
+  db,
+  handleFirestoreError,
+  OperationType,
+  isFirestoreOfflineError
+} from './firebase';
 import { dbService } from './db';
-import { BusinessBrainData, WritingGuidelinesSettings, ApprovedWritingExample } from '../types';
+import {
+  BusinessBrainData,
+  WritingGuidelinesSettings,
+  ApprovedWritingExample
+} from '../types';
+import { synthesizeEditorialRulesFromLegacy } from '../data/defaultEditorialRules';
 
 export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'offline' | 'error';
 
@@ -59,8 +70,20 @@ class FirebaseSyncService {
 
       if (user) {
         this.updateState({ status: 'syncing', errorMessage: null });
-        await this.startRealtimeListeners(user.uid);
-        await this.syncAll(user.uid);
+        try {
+          await this.startRealtimeListeners(user.uid);
+          await this.syncAll(user.uid);
+        } catch (err) {
+          if (isFirestoreOfflineError(err)) {
+            console.warn('[Firestore] Operating in offline mode during auth change.');
+            this.updateState({
+              status: 'offline',
+              errorMessage: 'Offline mode active (local data safe)'
+            });
+          } else {
+            console.error('Error during user auth sync initialization:', err);
+          }
+        }
       } else {
         this.updateState({ status: 'idle', errorMessage: null, lastSyncedAt: null });
       }
@@ -99,9 +122,13 @@ class FirebaseSyncService {
   private handleNetworkChange(isOnline: boolean) {
     this.updateState({ isOnline });
     if (isOnline && this.state.currentUser) {
-      this.syncAll(this.state.currentUser.uid).catch(console.error);
+      this.syncAll(this.state.currentUser.uid).catch((err) => {
+        if (!isFirestoreOfflineError(err)) {
+          console.error('Sync failed on network restore:', err);
+        }
+      });
     } else if (!isOnline) {
-      this.updateState({ status: 'offline' });
+      this.updateState({ status: 'offline', errorMessage: 'Device is offline.' });
     }
   }
 
@@ -121,92 +148,78 @@ class FirebaseSyncService {
   private async startRealtimeListeners(userId: string) {
     if (!this.state.isOnline) return;
 
-    // 1. Business Brain Listener
-    const brainDocRef = doc(db, 'users', userId, 'settings', 'business_brain');
-    const unsubBrain = onSnapshot(
-      brainDocRef,
+    // 1. Editorial Rules Listener (Replaces legacy Business Brain and Writing Guidelines)
+    const editorialDocRef = doc(db, 'users', userId, 'settings', 'editorial_rules');
+    const unsubEditorial = onSnapshot(
+      editorialDocRef,
       async (snapshot) => {
         if (this.isInitialSyncing) return;
         if (snapshot.exists()) {
-          const remoteData = snapshot.data() as BusinessBrainData & { id?: string };
-          const localData = await dbService.getBusinessBrain();
+          const remoteData = snapshot.data() as { rules?: string; updatedAt?: string };
+          const localRules = await dbService.getEditorialRules();
 
-          const remoteTime = remoteData.updatedAt ? new Date(remoteData.updatedAt).getTime() : 0;
-          const localTime = localData.updatedAt ? new Date(localData.updatedAt).getTime() : 0;
-
-          if (remoteTime > localTime) {
-            await dbService.saveBusinessBrain(remoteData);
+          if (remoteData.rules && remoteData.rules !== localRules) {
+            await dbService.saveEditorialRules(remoteData.rules);
             this.notifyDataChanged();
           }
         }
       },
       (error) => {
-        console.error('Business brain sync snapshot error:', error);
-      }
-    );
-    this.unsubscribers.push(unsubBrain);
-
-    // 2. Writing Guidelines Listener
-    const guidelinesDocRef = doc(db, 'users', userId, 'settings', 'writing_guidelines');
-    const unsubGuidelines = onSnapshot(
-      guidelinesDocRef,
-      async (snapshot) => {
-        if (this.isInitialSyncing) return;
-        if (snapshot.exists()) {
-          const remoteData = snapshot.data() as WritingGuidelinesSettings & { id?: string };
-          const localData = await dbService.getWritingGuidelines();
-
-          const remoteTime = remoteData.updatedAt ? new Date(remoteData.updatedAt).getTime() : 0;
-          const localTime = localData.updatedAt ? new Date(localData.updatedAt).getTime() : 0;
-
-          if (remoteTime > localTime) {
-            await dbService.saveWritingGuidelines(remoteData);
-            this.notifyDataChanged();
-          }
+        if (isFirestoreOfflineError(error)) {
+          console.warn('[Firestore] Realtime editorial rules listener operating offline.');
+          this.updateState({ status: 'offline' });
+        } else {
+          console.error('Editorial rules sync snapshot error:', error);
         }
-      },
-      (error) => {
-        console.error('Writing guidelines sync snapshot error:', error);
       }
     );
-    this.unsubscribers.push(unsubGuidelines);
+    this.unsubscribers.push(unsubEditorial);
 
-    // 3. Writing Examples Collection Listener
+    // 2. Writing Examples Collection Listener
     const examplesColRef = collection(db, 'users', userId, 'writing_examples');
     const unsubExamples = onSnapshot(
       examplesColRef,
       async (snapshot) => {
         if (this.isInitialSyncing) return;
-        const localExamples = await dbService.getWritingExamples();
-        const localMap = new Map(localExamples.map((ex) => [ex.id, ex]));
-        let hasChanges = false;
+        try {
+          const localExamples = await dbService.getWritingExamples();
+          const localMap = new Map(localExamples.map((ex) => [ex.id, ex]));
+          let hasChanges = false;
 
-        for (const change of snapshot.docChanges()) {
-          const remoteDoc = change.doc.data() as ApprovedWritingExample & { deleted?: boolean };
+          for (const change of snapshot.docChanges()) {
+            const remoteDoc = change.doc.data() as ApprovedWritingExample & { deleted?: boolean };
 
-          if (remoteDoc.deleted) {
-            if (localMap.has(remoteDoc.id)) {
-              await dbService.deleteWritingExample(remoteDoc.id);
-              hasChanges = true;
-            }
-          } else {
-            const localEx = localMap.get(remoteDoc.id);
-            const remoteTime = remoteDoc.updatedAt ? new Date(remoteDoc.updatedAt).getTime() : 0;
-            const localTime = localEx?.updatedAt ? new Date(localEx.updatedAt).getTime() : 0;
+            if (remoteDoc.deleted) {
+              if (localMap.has(remoteDoc.id)) {
+                await dbService.deleteWritingExample(remoteDoc.id);
+                hasChanges = true;
+              }
+            } else {
+              const localEx = localMap.get(remoteDoc.id);
+              const remoteTime = remoteDoc.updatedAt ? new Date(remoteDoc.updatedAt).getTime() : 0;
+              const localTime = localEx?.updatedAt ? new Date(localEx.updatedAt).getTime() : 0;
 
-            if (!localEx || remoteTime > localTime) {
-              await dbService.saveWritingExample(remoteDoc);
-              hasChanges = true;
+              if (!localEx || remoteTime > localTime) {
+                await dbService.saveWritingExample(remoteDoc);
+                hasChanges = true;
+              }
             }
           }
-        }
 
-        if (hasChanges) {
-          this.notifyDataChanged();
+          if (hasChanges) {
+            this.notifyDataChanged();
+          }
+        } catch (err) {
+          console.warn('Error processing writing examples snapshot:', err);
         }
       },
       (error) => {
-        console.error('Writing examples sync snapshot error:', error);
+        if (isFirestoreOfflineError(error)) {
+          console.warn('[Firestore] Writing examples listener operating offline.');
+          this.updateState({ status: 'offline' });
+        } else {
+          console.error('Writing examples sync snapshot error:', error);
+        }
       }
     );
     this.unsubscribers.push(unsubExamples);
@@ -234,8 +247,7 @@ class FirebaseSyncService {
       this.isInitialSyncing = true;
 
       await Promise.all([
-        this.syncBusinessBrain(userId),
-        this.syncWritingGuidelines(userId),
+        this.syncEditorialRules(userId),
         this.syncWritingExamples(userId)
       ]);
 
@@ -246,6 +258,14 @@ class FirebaseSyncService {
       });
       this.notifyDataChanged();
     } catch (error: unknown) {
+      if (isFirestoreOfflineError(error)) {
+        console.warn('[Firestore Offline] Could not reach Cloud Firestore. Local IndexedDB data is active.');
+        this.updateState({
+          status: 'offline',
+          errorMessage: 'Offline mode active. Local data is preserved.'
+        });
+        return;
+      }
       console.error('Sync failed:', error);
       this.updateState({
         status: 'error',
@@ -256,106 +276,106 @@ class FirebaseSyncService {
     }
   }
 
-  // --- CATEGORY 1: BUSINESS BRAIN SYNC ---
+  // --- CANONICAL EDITORIAL RULES SYNC ---
 
-  private async syncBusinessBrain(userId: string): Promise<void> {
-    const localBrain = await dbService.getBusinessBrain();
-    const docPath = `users/${userId}/settings/business_brain`;
-    const docRef = doc(db, 'users', userId, 'settings', 'business_brain');
+  private async syncEditorialRules(userId: string): Promise<void> {
+    const localRules = await dbService.getEditorialRules();
+    const docPath = `users/${userId}/settings/editorial_rules`;
+    const docRef = doc(db, 'users', userId, 'settings', 'editorial_rules');
 
     let remoteSnap;
     try {
       remoteSnap = await getDoc(docRef);
     } catch (err) {
+      if (isFirestoreOfflineError(err)) {
+        console.warn(`[Firestore Offline] Operating offline for ${docPath}. Local rules retained.`);
+        return;
+      }
       handleFirestoreError(err, OperationType.GET, docPath);
+      return;
     }
 
-    if (!remoteSnap.exists()) {
-      // Push local to remote if local brain exists
-      if (localBrain) {
+    if (!remoteSnap || !remoteSnap.exists()) {
+      // Check if remote has legacy business_brain or writing_guidelines to migrate into editorial_rules
+      let migratedFromLegacyRemote = false;
+      try {
+        const legacyBrainRef = doc(db, 'users', userId, 'settings', 'business_brain');
+        const legacyGuidelinesRef = doc(db, 'users', userId, 'settings', 'writing_guidelines');
+        const [brainSnap, guidelinesSnap] = await Promise.all([
+          getDoc(legacyBrainRef).catch(() => null),
+          getDoc(legacyGuidelinesRef).catch(() => null)
+        ]);
+
+        const legacyBrain = brainSnap?.exists() ? (brainSnap.data() as BusinessBrainData) : null;
+        const legacyGuidelines = guidelinesSnap?.exists() ? (guidelinesSnap.data() as WritingGuidelinesSettings) : null;
+
+        if (legacyBrain || legacyGuidelines) {
+          const synthesized = synthesizeEditorialRulesFromLegacy(legacyBrain, legacyGuidelines);
+          if (synthesized) {
+            await dbService.saveEditorialRules(synthesized);
+            const payload = {
+              id: 'editorial_rules',
+              rules: synthesized,
+              updatedAt: new Date().toISOString()
+            };
+            try {
+              await setDoc(docRef, payload);
+              migratedFromLegacyRemote = true;
+            } catch (wErr) {
+              if (!isFirestoreOfflineError(wErr)) {
+                console.warn('Could not save synthesized rules to remote:', wErr);
+              }
+            }
+          }
+        }
+      } catch (legacyErr) {
+        console.warn('Legacy remote migration check skipped:', legacyErr);
+      }
+
+      // If not migrated from legacy remote and local rules exist, upload local rules
+      if (!migratedFromLegacyRemote && localRules) {
         const payload = {
-          ...localBrain,
-          id: 'business_brain',
-          updatedAt: localBrain.updatedAt || new Date().toISOString()
+          id: 'editorial_rules',
+          rules: localRules,
+          updatedAt: new Date().toISOString()
         };
         try {
           await setDoc(docRef, payload);
         } catch (err) {
+          if (isFirestoreOfflineError(err)) {
+            console.warn('[Firestore Offline] Could not push editorial rules to remote; preserved locally.');
+            return;
+          }
           handleFirestoreError(err, OperationType.WRITE, docPath);
         }
       }
     } else {
-      const remoteBrain = remoteSnap.data() as BusinessBrainData & { id?: string };
-      const remoteTime = remoteBrain.updatedAt ? new Date(remoteBrain.updatedAt).getTime() : 0;
-      const localTime = localBrain?.updatedAt ? new Date(localBrain.updatedAt).getTime() : 0;
+      const remoteData = remoteSnap.data() as { rules?: string; updatedAt?: string };
+      const remoteRules = remoteData?.rules;
 
-      if (remoteTime > localTime) {
-        await dbService.saveBusinessBrain(remoteBrain);
-      } else if (localTime > remoteTime && localBrain) {
+      if (remoteRules && remoteRules !== localRules) {
+        // If remote rules differ, update local rules
+        await dbService.saveEditorialRules(remoteRules);
+      } else if (localRules && localRules !== remoteRules) {
         const payload = {
-          ...localBrain,
-          id: 'business_brain',
-          updatedAt: localBrain.updatedAt
+          id: 'editorial_rules',
+          rules: localRules,
+          updatedAt: new Date().toISOString()
         };
         try {
           await setDoc(docRef, payload);
         } catch (err) {
+          if (isFirestoreOfflineError(err)) {
+            console.warn('[Firestore Offline] Could not push updated editorial rules to remote.');
+            return;
+          }
           handleFirestoreError(err, OperationType.WRITE, docPath);
         }
       }
     }
   }
 
-  // --- CATEGORY 2A: WRITING GUIDELINES SYNC ---
-
-  private async syncWritingGuidelines(userId: string): Promise<void> {
-    const localGuidelines = await dbService.getWritingGuidelines();
-    const docPath = `users/${userId}/settings/writing_guidelines`;
-    const docRef = doc(db, 'users', userId, 'settings', 'writing_guidelines');
-
-    let remoteSnap;
-    try {
-      remoteSnap = await getDoc(docRef);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.GET, docPath);
-    }
-
-    if (!remoteSnap.exists()) {
-      if (localGuidelines) {
-        const payload = {
-          ...localGuidelines,
-          id: 'writing_guidelines',
-          updatedAt: localGuidelines.updatedAt || new Date().toISOString()
-        };
-        try {
-          await setDoc(docRef, payload);
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, docPath);
-        }
-      }
-    } else {
-      const remoteGuidelines = remoteSnap.data() as WritingGuidelinesSettings & { id?: string };
-      const remoteTime = remoteGuidelines.updatedAt ? new Date(remoteGuidelines.updatedAt).getTime() : 0;
-      const localTime = localGuidelines?.updatedAt ? new Date(localGuidelines.updatedAt).getTime() : 0;
-
-      if (remoteTime > localTime) {
-        await dbService.saveWritingGuidelines(remoteGuidelines);
-      } else if (localTime > remoteTime && localGuidelines) {
-        const payload = {
-          ...localGuidelines,
-          id: 'writing_guidelines',
-          updatedAt: localGuidelines.updatedAt
-        };
-        try {
-          await setDoc(docRef, payload);
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, docPath);
-        }
-      }
-    }
-  }
-
-  // --- CATEGORY 2B: WRITING EXAMPLES SYNC ---
+  // --- WRITING EXAMPLES SYNC ---
 
   private async syncWritingExamples(userId: string): Promise<void> {
     const localExamples = await dbService.getWritingExamples();
@@ -366,8 +386,15 @@ class FirebaseSyncService {
     try {
       remoteSnaps = await getDocs(colRef);
     } catch (err) {
+      if (isFirestoreOfflineError(err)) {
+        console.warn(`[Firestore Offline] Operating offline for ${colPath}. Local examples retained.`);
+        return;
+      }
       handleFirestoreError(err, OperationType.GET, colPath);
+      return;
     }
+
+    if (!remoteSnaps) return;
 
     const remoteMap = new Map<string, ApprovedWritingExample & { deleted?: boolean }>();
     remoteSnaps.forEach((docSnap) => {
@@ -398,7 +425,9 @@ class FirebaseSyncService {
         try {
           await setDoc(doc(db, 'users', userId, 'writing_examples', id), localEx);
         } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, itemPath);
+          if (!isFirestoreOfflineError(err)) {
+            handleFirestoreError(err, OperationType.WRITE, itemPath);
+          }
         }
       }
     }
@@ -414,24 +443,26 @@ class FirebaseSyncService {
         try {
           await setDoc(doc(db, 'users', userId, 'writing_examples', id), payload);
         } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, itemPath);
+          if (!isFirestoreOfflineError(err)) {
+            handleFirestoreError(err, OperationType.WRITE, itemPath);
+          }
         }
       }
     }
   }
 
-  // --- HOOK FOR WRITES ON LOCAL SETTINGS TO TRIGGER SYNC ---
+  // --- HOOK FOR WRITES ON LOCAL EDITORIAL RULES TO TRIGGER SYNC ---
 
-  public async notifyBrainUpdated(brain: BusinessBrainData): Promise<void> {
+  public async notifyEditorialRulesUpdated(rules: string): Promise<void> {
     if (!this.state.currentUser || !this.state.isOnline) return;
     const userId = this.state.currentUser.uid;
-    const docPath = `users/${userId}/settings/business_brain`;
-    const docRef = doc(db, 'users', userId, 'settings', 'business_brain');
+    const docPath = `users/${userId}/settings/editorial_rules`;
+    const docRef = doc(db, 'users', userId, 'settings', 'editorial_rules');
 
     const payload = {
-      ...brain,
-      id: 'business_brain',
-      updatedAt: brain.updatedAt || new Date().toISOString()
+      id: 'editorial_rules',
+      rules,
+      updatedAt: new Date().toISOString()
     };
 
     try {
@@ -439,27 +470,11 @@ class FirebaseSyncService {
       await setDoc(docRef, payload);
       this.updateState({ status: 'synced', lastSyncedAt: new Date(), errorMessage: null });
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, docPath);
-    }
-  }
-
-  public async notifyWritingGuidelinesUpdated(guidelines: WritingGuidelinesSettings): Promise<void> {
-    if (!this.state.currentUser || !this.state.isOnline) return;
-    const userId = this.state.currentUser.uid;
-    const docPath = `users/${userId}/settings/writing_guidelines`;
-    const docRef = doc(db, 'users', userId, 'settings', 'writing_guidelines');
-
-    const payload = {
-      ...guidelines,
-      id: 'writing_guidelines',
-      updatedAt: guidelines.updatedAt || new Date().toISOString()
-    };
-
-    try {
-      this.updateState({ status: 'syncing' });
-      await setDoc(docRef, payload);
-      this.updateState({ status: 'synced', lastSyncedAt: new Date(), errorMessage: null });
-    } catch (err) {
+      if (isFirestoreOfflineError(err)) {
+        console.warn('[Firestore Offline] Editorial rules saved locally. Cloud sync pending connection.');
+        this.updateState({ status: 'offline', errorMessage: 'Rules saved locally (offline mode).' });
+        return;
+      }
       handleFirestoreError(err, OperationType.WRITE, docPath);
     }
   }
@@ -481,6 +496,10 @@ class FirebaseSyncService {
       await setDoc(docRef, payload);
       this.updateState({ status: 'synced', lastSyncedAt: new Date(), errorMessage: null });
     } catch (err) {
+      if (isFirestoreOfflineError(err)) {
+        this.updateState({ status: 'offline' });
+        return;
+      }
       handleFirestoreError(err, OperationType.WRITE, docPath);
     }
   }
@@ -502,8 +521,22 @@ class FirebaseSyncService {
       await setDoc(docRef, tombstone);
       this.updateState({ status: 'synced', lastSyncedAt: new Date(), errorMessage: null });
     } catch (err) {
+      if (isFirestoreOfflineError(err)) {
+        this.updateState({ status: 'offline' });
+        return;
+      }
       handleFirestoreError(err, OperationType.WRITE, docPath);
     }
+  }
+
+  // --- BACKWARDS-COMPATIBILITY DEPRECATED METHODS ---
+
+  public async notifyBrainUpdated(_brain?: unknown): Promise<void> {
+    // Superseded by notifyEditorialRulesUpdated
+  }
+
+  public async notifyWritingGuidelinesUpdated(_guidelines?: unknown): Promise<void> {
+    // Superseded by notifyEditorialRulesUpdated
   }
 }
 

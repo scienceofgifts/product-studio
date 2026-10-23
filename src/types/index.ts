@@ -341,6 +341,8 @@ export interface ProductRecord {
     rating?: 'up' | 'down';
     notes?: string;
   };
+  additionalImages?: UploadedImageItem[];
+  workflowState?: WorkflowState;
 }
 
 export * from './similarity';
@@ -382,3 +384,5 @@ export * from './phase3';
 export * from './planner';
 export * from './writingGuidelines';
 export * from './fourthwall';
+export * from './workflow';
+import { UploadedImageItem, WorkflowState } from './workflow';

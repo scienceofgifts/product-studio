@@ -18,6 +18,7 @@ import { INITIAL_BUSINESS_BRAIN, INITIAL_GIFT_GUIDES } from '../data/initialBusi
 import { INITIAL_CONTEXT_PROFILES } from '../data/initialContextProfiles';
 import { INITIAL_WRITING_GUIDELINES, INITIAL_WRITING_EXAMPLES_LIST } from '../data/initialWritingGuidelines';
 import { DEFAULT_MODEL_ID, resolveModelId } from '../config/models';
+import { DEFAULT_EDITORIAL_RULES, synthesizeEditorialRulesFromLegacy } from '../data/defaultEditorialRules';
 
 const DB_NAME = 'science_of_gifts_studio_db';
 const DB_VERSION = 6;
@@ -283,6 +284,67 @@ class ProductIntelligenceDB {
         const tx = db.transaction(STORES.CONFIG, 'readwrite');
         const store = tx.objectStore(STORES.CONFIG);
         const req = store.put({ key: 'preferred_model', value: validatedModel });
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  async getEditorialRules(): Promise<string> {
+    const db = await this.openDB();
+    return new Promise((resolve) => {
+      try {
+        if (!db.objectStoreNames.contains(STORES.CONFIG)) {
+          resolve(DEFAULT_EDITORIAL_RULES);
+          return;
+        }
+        const tx = db.transaction(STORES.CONFIG, 'readonly');
+        const store = tx.objectStore(STORES.CONFIG);
+        const req = store.get('editorial_rules');
+
+        req.onsuccess = async () => {
+          const val = req.result?.value;
+          if (typeof val === 'string' && val.trim().length > 0) {
+            resolve(val);
+            return;
+          }
+
+          // Safe fallback / migration: if empty, synthesize from existing Brain and Guidelines
+          try {
+            const [legacyBrain, legacyGuidelines] = await Promise.all([
+              this.getBusinessBrain().catch(() => null),
+              this.getWritingGuidelines().catch(() => null),
+            ]);
+            const migrated = synthesizeEditorialRulesFromLegacy(legacyBrain, legacyGuidelines);
+            this.saveEditorialRules(migrated).catch(console.error);
+            resolve(migrated);
+          } catch (mErr) {
+            console.warn('Fallback migration to default editorial rules:', mErr);
+            resolve(DEFAULT_EDITORIAL_RULES);
+          }
+        };
+
+        req.onerror = () => resolve(DEFAULT_EDITORIAL_RULES);
+      } catch (e) {
+        console.warn('Error reading editorial rules:', e);
+        resolve(DEFAULT_EDITORIAL_RULES);
+      }
+    });
+  }
+
+  async saveEditorialRules(rules: string): Promise<void> {
+    const db = await this.openDB();
+    return new Promise((resolve, reject) => {
+      try {
+        if (!db.objectStoreNames.contains(STORES.CONFIG)) {
+          resolve();
+          return;
+        }
+        const tx = db.transaction(STORES.CONFIG, 'readwrite');
+        const store = tx.objectStore(STORES.CONFIG);
+        const req = store.put({ key: 'editorial_rules', value: rules });
         req.onsuccess = () => resolve();
         req.onerror = () => reject(req.error);
       } catch (e) {
@@ -1106,7 +1168,7 @@ class ProductIntelligenceDB {
   // --- EXPORT & BULK BACKUP ---
 
   async exportBackup(): Promise<string> {
-    const [products, brain, guides, profiles, workingCtx, feedback, guidePlans, guidelines, examples] = await Promise.all([
+    const [products, brain, guides, profiles, workingCtx, feedback, guidePlans, guidelines, examples, editorialRules] = await Promise.all([
       this.getAllProducts(),
       this.getBusinessBrain(),
       this.getGiftGuides(),
@@ -1115,7 +1177,8 @@ class ProductIntelligenceDB {
       this.getAllComparisonFeedback(),
       this.getGuidePlans(),
       this.getWritingGuidelines(),
-      this.getWritingExamples()
+      this.getWritingExamples(),
+      this.getEditorialRules()
     ]);
 
     const sanitizedProducts = products.map(({ imageBlob, imageDataUrl, ...rest }) => rest);
@@ -1124,6 +1187,7 @@ class ProductIntelligenceDB {
       app: 'Science of Gifts — Product Intelligence Studio',
       exportDate: new Date().toISOString(),
       schemaVersion: DB_VERSION,
+      editorialRules,
       businessBrain: brain,
       giftGuides: guides,
       contextProfiles: profiles,
@@ -1143,6 +1207,10 @@ class ProductIntelligenceDB {
       const data = JSON.parse(jsonString);
       if (!data || !data.products || !Array.isArray(data.products)) {
         return { success: false, count: 0, error: 'Invalid backup JSON structure.' };
+      }
+
+      if (data.editorialRules && typeof data.editorialRules === 'string') {
+        await this.saveEditorialRules(data.editorialRules).catch(console.warn);
       }
 
       const db = await this.openDB();

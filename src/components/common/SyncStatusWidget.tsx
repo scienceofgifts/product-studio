@@ -225,13 +225,13 @@ export const SyncStatusWidget: React.FC<SyncStatusWidgetProps> = ({ compact = fa
                 </span>
               )}
               {syncState.status === 'synced' && (
-                <span className="flex items-center gap-1 text-emerald-700 font-medium whitespace-nowrap shrink-0" title="Business Brain & Guidelines synchronized with Cloud Firestore">
+                <span className="flex items-center gap-1 text-emerald-700 font-medium whitespace-nowrap shrink-0" title="Editorial Rules & styles synchronized with Cloud Firestore">
                   <CheckCircle2 className="w-3 h-3 shrink-0" />
                   <span className="hidden min-[380px]:inline">Synced</span>
                 </span>
               )}
               {syncState.status === 'offline' && (
-                <span className="flex items-center gap-1 text-amber-700 font-medium whitespace-nowrap shrink-0" title="Device is offline. Changes cached locally in IndexedDB">
+                <span className="flex items-center gap-1 text-amber-700 font-medium whitespace-nowrap shrink-0" title="Offline mode active. All changes saved locally in IndexedDB">
                   <WifiOff className="w-3 h-3 shrink-0" />
                   <span className="hidden min-[380px]:inline">Offline</span>
                 </span>
@@ -252,7 +252,7 @@ export const SyncStatusWidget: React.FC<SyncStatusWidgetProps> = ({ compact = fa
               <button
                 onClick={handleManualSync}
                 disabled={syncState.status === 'syncing' || !syncState.isOnline}
-                className="p-0.5 hover:text-stone-900 text-stone-500 rounded transition-colors disabled:opacity-40 shrink-0"
+                className="p-0.5 hover:text-stone-900 text-stone-500 rounded transition-colors disabled:opacity-40 shrink-0 cursor-pointer"
                 title="Manual Sync Now"
               >
                 <RefreshCw className="w-3 h-3" />
@@ -271,7 +271,7 @@ export const SyncStatusWidget: React.FC<SyncStatusWidgetProps> = ({ compact = fa
 
               <button
                 onClick={handleSignOut}
-                className="p-0.5 text-stone-400 hover:text-red-600 transition-colors shrink-0"
+                className="p-0.5 text-stone-400 hover:text-red-600 transition-colors shrink-0 cursor-pointer"
                 title="Sign Out"
               >
                 <LogOut className="w-3 h-3" />
@@ -281,8 +281,8 @@ export const SyncStatusWidget: React.FC<SyncStatusWidgetProps> = ({ compact = fa
             <button
               onClick={handleSignIn}
               disabled={isAuthorizing}
-              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 border border-stone-200 rounded-full transition-colors whitespace-nowrap shrink-0"
-              title="Sign in with Google to sync Business Brain & Writing Guidelines"
+              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 border border-stone-200 rounded-full transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              title="Sign in with Google to sync Editorial Rules"
             >
               <LogIn className="w-3 h-3 text-[#1E3A8A] shrink-0" />
               <span>{isAuthorizing ? 'Signing in...' : 'Sign In'}<span className="hidden sm:inline"> to Sync</span></span>
@@ -302,13 +302,14 @@ export const SyncStatusWidget: React.FC<SyncStatusWidgetProps> = ({ compact = fa
             <Cloud className="w-5 h-5 text-[#1E3A8A]" />
             <h4 className="font-semibold text-sm text-stone-900">Cloud Firestore Synchronization</h4>
             <span className="px-2 py-0.5 text-[10px] uppercase font-bold tracking-wider rounded bg-blue-100 text-[#1E3A8A]">
-              Selected Settings
+              Editorial Rules
             </span>
           </div>
           <p className="text-xs text-stone-600 mt-1 max-w-xl">
-            Synchronizes <span className="font-medium text-stone-900">Business Brand / Brain</span> and <span className="font-medium text-stone-900">Writing Guidelines & Style Profiles</span> across your devices. Products, images, and working drafts remain stored safely in your local browser cache (IndexedDB).
+            Synchronizes your canonical <span className="font-medium text-stone-900">Editorial Rules</span> across devices using Firebase. All products, mockups, and working drafts remain stored safely in your local browser cache (IndexedDB).
           </p>
         </div>
+
 
         <div>
           {syncState.currentUser ? (

@@ -1,8 +1,18 @@
 {
   "entities": {
+    "EditorialRules": {
+      "title": "EditorialRules",
+      "description": "User global canonical editorial rules and instructions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "rules": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
     "BusinessBrain": {
       "title": "BusinessBrain",
-      "description": "User brand identity and business brain settings",
+      "description": "Legacy user brand identity and business brain settings (for backwards compatibility migration)",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -17,7 +27,7 @@
     },
     "WritingGuidelines": {
       "title": "WritingGuidelines",
-      "description": "User writing style guidelines and rules",
+      "description": "Legacy user writing style guidelines and rules (for backwards compatibility migration)",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -44,13 +54,17 @@
     }
   },
   "firestore": {
+    "/users/{userId}/settings/editorial_rules": {
+      "schema": "EditorialRules",
+      "description": "User canonical editorial rules document"
+    },
     "/users/{userId}/settings/business_brain": {
       "schema": "BusinessBrain",
-      "description": "User business brain settings document"
+      "description": "Legacy user business brain settings document"
     },
     "/users/{userId}/settings/writing_guidelines": {
       "schema": "WritingGuidelines",
-      "description": "User writing guidelines document"
+      "description": "Legacy user writing guidelines document"
     },
     "/users/{userId}/writing_examples/{exampleId}": {
       "schema": "ApprovedWritingExample",

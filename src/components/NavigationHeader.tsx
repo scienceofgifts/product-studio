@@ -7,7 +7,7 @@ import React from 'react';
 import { Plus, Sparkles, BookOpen, Database, SlidersHorizontal, Layers, PieChart, FileText } from 'lucide-react';
 import { SyncStatusWidget } from './common/SyncStatusWidget';
 
-export type ActiveTab = 'workspace' | 'library' | 'portfolio' | 'planner' | 'brain' | 'settings';
+export type ActiveTab = 'workspace' | 'library' | 'portfolio' | 'planner' | 'settings';
 
 interface NavigationHeaderProps {
   activeTab: ActiveTab;
@@ -95,18 +95,6 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({
           </button>
 
           <button
-            onClick={() => onTabChange('brain')}
-            className={`flex items-center gap-1.5 transition-colors pb-1 border-b-2 whitespace-nowrap shrink-0 ${
-              activeTab === 'brain'
-                ? 'text-[#1E3A8A] border-[#1E3A8A] font-semibold'
-                : 'text-stone-600 border-transparent hover:text-stone-900 hover:border-stone-300'
-            }`}
-          >
-            <BookOpen className="w-4 h-4" />
-            <span>Business Brain</span>
-          </button>
-
-          <button
             onClick={() => onTabChange('settings')}
             className={`flex items-center gap-1.5 transition-colors pb-1 border-b-2 whitespace-nowrap shrink-0 ${
               activeTab === 'settings'
@@ -149,11 +137,11 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({
           <span>Library ({libraryCount})</span>
         </button>
         <button
-          onClick={() => onTabChange('brain')}
-          className={`flex items-center gap-1 py-1 ${activeTab === 'brain' ? 'text-[#1E3A8A] font-bold' : ''}`}
+          onClick={() => onTabChange('planner')}
+          className={`flex items-center gap-1 py-1 ${activeTab === 'planner' ? 'text-[#1E3A8A] font-bold' : ''}`}
         >
-          <BookOpen className="w-3.5 h-3.5" />
-          <span>Brain</span>
+          <FileText className="w-3.5 h-3.5" />
+          <span>Planner</span>
         </button>
         <button
           onClick={() => onTabChange('settings')}

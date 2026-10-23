@@ -18,15 +18,16 @@ import {
   ApprovedWritingExample
 } from './types';
 import { INITIAL_WRITING_GUIDELINES, INITIAL_WRITING_EXAMPLES_LIST } from './data/initialWritingGuidelines';
+import { DEFAULT_EDITORIAL_RULES } from './data/defaultEditorialRules';
 import { dbService } from './services/db';
 import { syncService } from './services/syncService';
 import { SAMPLE_PRODUCTS } from './data/sampleProducts';
 import { NavigationHeader, ActiveTab } from './components/NavigationHeader';
 import { ProductInputPanel } from './components/workspace/ProductInputPanel';
 import { AnalysisResultsPanel } from './components/workspace/AnalysisResultsPanel';
+import { GuidedWorkflowView } from './components/workflow/GuidedWorkflowView';
 import { ProductLibraryView } from './components/library/ProductLibraryView';
 import { PortfolioIntelligenceView } from './components/portfolio/PortfolioIntelligenceView';
-import { BusinessBrainView } from './components/brain/BusinessBrainView';
 import { SettingsView } from './components/settings/SettingsView';
 import { GuidePlannerView } from './components/planner/GuidePlannerView';
 import { GuideDetailEditor } from './components/planner/GuideDetailEditor';
@@ -67,6 +68,7 @@ const EMPTY_DETAILS: ProductDetailsInput = {
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('workspace');
   const [products, setProducts] = useState<ProductRecord[]>([]);
+  const [editorialRules, setEditorialRules] = useState<string>(DEFAULT_EDITORIAL_RULES);
   const [businessBrain, setBusinessBrain] = useState<BusinessBrainData | null>(null);
   const [giftGuides, setGiftGuides] = useState<GiftGuide[]>([]);
   const [contextProfiles, setContextProfiles] = useState<ContextProfile[]>([]);
@@ -149,8 +151,9 @@ export default function App() {
   // Load initial data from IndexedDB
   const refreshData = useCallback(async () => {
     try {
-      const [allProds, brain, guides, savedModel, profiles, workingCtx, feedback, plans, guidelines, examples] = await Promise.all([
+      const [allProds, rules, brain, guides, savedModel, profiles, workingCtx, feedback, plans, guidelines, examples] = await Promise.all([
         dbService.getAllProducts(),
+        dbService.getEditorialRules(),
         dbService.getBusinessBrain(),
         dbService.getGiftGuides(),
         dbService.getPreferredModel(),
@@ -162,6 +165,7 @@ export default function App() {
         dbService.getWritingExamples()
       ]);
       setProducts(allProds);
+      setEditorialRules(rules);
       setBusinessBrain(brain);
       setGiftGuides(guides);
       setContextProfiles(profiles);
@@ -605,20 +609,14 @@ export default function App() {
     showToast('Product record deleted');
   };
 
-  // Save updated Business Brain
-  const handleSaveBusinessBrain = async (updated: BusinessBrainData) => {
-    await dbService.saveBusinessBrain(updated);
-    await syncService.notifyBrainUpdated(updated);
-    await refreshData();
-    showToast(`Business Brain updated to Version ${(updated.version || 1) + 1}`);
-  };
-
-  // Reset Business Brain
-  const handleResetBusinessBrain = async () => {
-    const def = await dbService.resetBusinessBrainToDefault();
-    await syncService.notifyBrainUpdated(def);
-    setBusinessBrain(def);
-    showToast('Business Brain reset to initial specifications');
+  // Save updated Editorial Rules
+  const handleSaveEditorialRules = async (rules: string) => {
+    await dbService.saveEditorialRules(rules);
+    setEditorialRules(rules);
+    await syncService.notifyEditorialRulesUpdated(rules).catch((err) => {
+      console.warn('Could not sync editorial rules to cloud:', err);
+    });
+    showToast('Global Editorial Rules saved');
   };
 
   // Add new gift guide
@@ -734,80 +732,35 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Workspace View */}
+        {/* Guided 6-Step Product Copy Workflow */}
         {activeTab === 'workspace' && (
-          <div className="space-y-4">
-            {analysisError && (
-              <div className="p-3.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800 flex items-start gap-2.5 animate-in fade-in">
-                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <span className="font-semibold block">Analysis Engine Error</span>
-                  <p className="mt-0.5 leading-relaxed">{analysisError}</p>
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              {/* Left Column: Product Input (5 cols on lg) */}
-              <div className="lg:col-span-5 h-full">
-                <ProductInputPanel
-                  details={details}
-                  onDetailsChange={setDetails}
-                  mode={analysisMode}
-                  onModeChange={setAnalysisMode}
-                  imageDataUrl={imageDataUrl}
-                  imageFileName={imageFileName}
-                  imageSize={imageSize}
-                  onImageSelected={handleImageSelected}
-                  onImageRemoved={handleImageRemoved}
-                  onRunAnalysis={handleRunAnalysis}
-                  onSaveDraft={handleSaveDraft}
-                  isAnalyzing={isAnalyzing}
-                  giftGuides={giftGuides}
-                  onOpenNewGuideModal={() => setIsNewGuideModalOpen(true)}
-                  onOpenManageGuidesModal={() => setIsManageGuidesModalOpen(true)}
-                  onDeleteGiftGuideClick={(g) => setGuideToDelete(g)}
-                  selectedModel={selectedModel}
-                  onModelChange={handleModelChange}
-                  profiles={contextProfiles}
-                  activeProfileId={activeProfileId}
-                  isContextModified={isContextModified}
-                  onSelectProfile={handleSelectProfile}
-                  onSaveToActiveProfile={handleSaveToActiveProfile}
-                  onCreateProfile={handleCreateProfile}
-                  onRenameProfile={handleRenameProfile}
-                  onDuplicateProfile={handleDuplicateProfile}
-                  onDeleteProfile={handleDeleteProfile}
-                  onResetWorkingContext={handleResetWorkingContext}
-                />
-              </div>
-
-              {/* Right Column: Analysis Results & Brief (7 cols on lg) */}
-              <div className="lg:col-span-7 h-full">
-                <AnalysisResultsPanel
-                  product={products.find((p) => p.id === currentProductId) || null}
-                  analysis={analysisResult}
-                  isAnalyzing={isAnalyzing}
-                  onRerun={handleRunAnalysis}
-                  businessBrainVersion={businessBrain?.version || 1}
-                  catalogueProducts={products}
-                  onInspectComparison={(pB) => {
-                    const pA = products.find((p) => p.id === currentProductId) || products[0];
-                    if (pA && pB) {
-                      setActiveComparisonPair({ productA: pA, productB: pB });
-                    }
-                  }}
-                  onApplyTitle={(title) => {
-                    setDetails((prev) => ({
-                      ...prev,
-                      workingName: title,
-                      currentTitle: title
-                    }));
-                    showToast(`Applied "${title}" as working product title`);
-                  }}
-                />
-              </div>
-            </div>
-          </div>
+          <GuidedWorkflowView
+            currentProduct={products.find((p) => p.id === currentProductId) || null}
+            onSaveProduct={async (record) => {
+              await dbService.saveProduct(record);
+              setCurrentProductId(record.id);
+              await refreshData();
+              showToast('Saved to Product Library');
+            }}
+            catalogueProducts={products}
+            giftGuides={giftGuides}
+            onOpenNewGuideModal={() => setIsNewGuideModalOpen(true)}
+            editorialRules={editorialRules}
+            selectedModel={selectedModel}
+            onModelChange={handleModelChange}
+            profiles={contextProfiles}
+            activeProfileId={activeProfileId}
+            isContextModified={isContextModified}
+            onSelectProfile={handleSelectProfile}
+            onSaveToActiveProfile={handleSaveToActiveProfile}
+            onCreateProfile={handleCreateProfile}
+            onRenameProfile={handleRenameProfile}
+            onDuplicateProfile={handleDuplicateProfile}
+            onDeleteProfile={handleDeleteProfile}
+            onResetWorkingContext={handleResetWorkingContext}
+            onNewProduct={handleNewProduct}
+            showToast={showToast}
+          />
         )}
 
         {/* Product Library View */}
@@ -842,8 +795,7 @@ export default function App() {
               catalogueProducts={products}
               giftGuides={giftGuides}
               contextProfiles={contextProfiles}
-              writingGuidelines={writingGuidelines}
-              writingExamples={writingExamples}
+              editorialRules={editorialRules}
               onSavePlan={handleSaveGuidePlan}
               onBack={() => setActiveGuidePlanId(null)}
               showToast={showToast}
@@ -871,20 +823,13 @@ export default function App() {
           )
         )}
 
-        {/* Business Brain View */}
-        {activeTab === 'brain' && businessBrain && (
-          <BusinessBrainView
-            brainData={businessBrain}
-            onSaveBrain={handleSaveBusinessBrain}
-            onResetToDefault={handleResetBusinessBrain}
-          />
-        )}
-
         {/* Settings View */}
         {activeTab === 'settings' && (
           <SettingsView
             currentModel={selectedModel}
             onModelChange={handleModelChange}
+            editorialRules={editorialRules}
+            onSaveEditorialRules={handleSaveEditorialRules}
             onExportBackup={handleExportBackup}
             onImportBackup={handleImportBackup}
             onClearAllData={handleClearAllData}
@@ -893,11 +838,6 @@ export default function App() {
             lastRequestedModel={analysisResult?.requestedModel || products.find((p) => p.analysisResult)?.analysisResult?.requestedModel}
             lastFallbackOccurred={analysisResult?.fallbackOccurred ?? products.find((p) => p.analysisResult)?.analysisResult?.fallbackOccurred}
             lastFallbackReason={analysisResult?.fallbackReason || products.find((p) => p.analysisResult)?.analysisResult?.fallbackReason}
-            writingGuidelines={writingGuidelines}
-            writingExamples={writingExamples}
-            onSaveWritingGuidelines={handleSaveWritingGuidelines}
-            onSaveWritingExample={handleSaveWritingExample}
-            onDeleteWritingExample={handleDeleteWritingExample}
             showToast={showToast}
           />
         )}

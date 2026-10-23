@@ -40,8 +40,9 @@ interface GuideDetailEditorProps {
   catalogueProducts: ProductRecord[];
   giftGuides: GiftGuide[];
   contextProfiles: ContextProfile[];
-  writingGuidelines: WritingGuidelinesSettings;
-  writingExamples: ApprovedWritingExample[];
+  editorialRules?: string;
+  writingGuidelines?: WritingGuidelinesSettings;
+  writingExamples?: ApprovedWritingExample[];
   onSavePlan: (updatedPlan: GuidePlanRecord) => Promise<void>;
   onBack: () => void;
   showToast: (text: string, type?: 'success' | 'error') => void;
@@ -54,6 +55,7 @@ export const GuideDetailEditor: React.FC<GuideDetailEditorProps> = ({
   catalogueProducts,
   giftGuides,
   contextProfiles,
+  editorialRules,
   writingGuidelines,
   writingExamples,
   onSavePlan,
@@ -258,7 +260,7 @@ export const GuideDetailEditor: React.FC<GuideDetailEditorProps> = ({
   };
 
   const handleGeneratePrompt = () => {
-    const promptRecord = generateChatGPTGuidePrompt(currentPlan, catalogueProducts, writingGuidelines, writingExamples);
+    const promptRecord = generateChatGPTGuidePrompt(currentPlan, catalogueProducts, editorialRules, writingGuidelines, writingExamples);
     const updated = {
       ...currentPlan,
       generatedPrompt: promptRecord,
@@ -266,7 +268,7 @@ export const GuideDetailEditor: React.FC<GuideDetailEditorProps> = ({
     };
     setCurrentPlan(updated);
     setActiveTab('prompt');
-    showToast('Master ChatGPT prompt generated with persistent guidelines');
+    showToast('Master ChatGPT prompt generated with editorial rules');
     handleSave(updated);
   };
 

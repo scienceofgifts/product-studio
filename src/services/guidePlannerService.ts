@@ -226,6 +226,7 @@ export function generateGuideOutline(plan: GuidePlanRecord, catalogueProducts: P
 export function generateChatGPTGuidePrompt(
   plan: GuidePlanRecord,
   catalogueProducts: ProductRecord[],
+  editorialRules?: string,
   guidelines?: WritingGuidelinesSettings,
   examples?: ApprovedWritingExample[]
 ): GeneratedPromptRecord {
@@ -292,11 +293,11 @@ ${lineupText}
 ## 4. Internal Links
 ${internalLinksText}`;
 
-  const resolvedGuidelines = guidelines || INITIAL_WRITING_GUIDELINES;
   const guideOverrides = plan.brief.editorialNotes || '';
 
   const promptText = composePromptWithGuidelines({
-    guidelines: resolvedGuidelines,
+    editorialRules,
+    guidelines,
     contentType: 'introduction',
     guideOverrides,
     taskInstructions,
