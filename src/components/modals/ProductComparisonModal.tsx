@@ -98,7 +98,8 @@ export const ProductComparisonModal: React.FC<ProductComparisonModalProps> = ({
         data = await res.json().catch(() => null);
       } else {
         const rawText = await res.text().catch(() => '');
-        throw new Error(`Server returned non-JSON response (${res.status}). ${rawText.slice(0, 100)}`);
+        const cleanMsg = rawText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150);
+        throw new Error(`Server returned status ${res.status}${cleanMsg ? `: ${cleanMsg}` : ''}`);
       }
 
       if (!res.ok) {

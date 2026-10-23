@@ -151,7 +151,8 @@ export const Step1ProductInput: React.FC<Step1ProductInputProps> = ({
         resJson = await response.json().catch(() => null);
       } else {
         const rawText = await response.text().catch(() => '');
-        throw new Error(`Server returned non-JSON response (${response.status}). ${rawText.slice(0, 100)}`);
+        const cleanMsg = rawText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150);
+        throw new Error(`Server returned status ${response.status}${cleanMsg ? `: ${cleanMsg}` : ''}`);
       }
 
       if (!response.ok) {

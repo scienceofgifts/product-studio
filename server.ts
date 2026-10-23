@@ -434,8 +434,37 @@ Draft Copy to Revise:
 async function startServer() {
   const app = express();
 
+  // CORS & Options preflight middleware for cross-origin preview / deployed environments
+  app.use((req: Request, res: Response, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(204);
+    }
+    next();
+  });
+
+  // Strip trailing slashes on API endpoints to prevent routing mismatches
+  app.use((req: Request, _res: Response, next) => {
+    if (req.path.startsWith('/api/') && req.path.length > 5 && req.path.endsWith('/')) {
+      const query = req.url.slice(req.path.length);
+      const cleanPath = req.path.slice(0, -1);
+      req.url = cleanPath + query;
+    }
+    next();
+  });
+
   // Support JSON payloads with high limit for image mockups
   app.use(express.json({ limit: '25mb' }));
+
+  // Handle JSON payload parsing syntax errors with JSON response
+  app.use((err: any, _req: Request, res: Response, next: any) => {
+    if (err instanceof SyntaxError && 'body' in err) {
+      return res.status(400).json({ error: 'Invalid JSON payload in request body.' });
+    }
+    next(err);
+  });
 
   // Health check endpoint
   app.get('/api/health', (_req: Request, res: Response) => {
@@ -1655,6 +1684,21 @@ Return a strictly valid JSON object matching the comparison schema.
         details: err.stack,
       });
     }
+  });
+
+  // Explicit catch-all for any unmatched /api/* routes so they never fall through to static file serving or return 405 Method Not Allowed HTML
+  app.all('/api/*', (req: Request, res: Response) => {
+    res.status(404).json({
+      error: `API endpoint ${req.method} ${req.path} not found on server.`,
+    });
+  });
+
+  // Global API error handler ensuring all internal API failures respond in JSON format
+  app.use('/api', (err: any, _req: Request, res: Response, _next: any) => {
+    console.error('Unhandled API Proxy Error:', err);
+    res.status(err.status || 500).json({
+      error: err.message || 'An internal error occurred in the AI server proxy.',
+    });
   });
 
   // Attach Vite middleware in development
