@@ -20,10 +20,29 @@ export async function signInWithGoogle(): Promise<User> {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error signing in with Google:', error);
+    if (error && (error.code === 'auth/unauthorized-domain' || String(error?.message).includes('unauthorized-domain'))) {
+      const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+      const projectId = firebaseConfig.projectId;
+      error.customDetails = {
+        domain: hostname,
+        projectId,
+        consoleUrl: `https://console.firebase.google.com/project/${projectId}/authentication/settings`
+      };
+    }
     throw error;
   }
+}
+
+export function getAuthorizedDomainInfo() {
+  const domain = typeof window !== 'undefined' ? window.location.hostname : '';
+  const projectId = firebaseConfig.projectId;
+  return {
+    domain,
+    projectId,
+    consoleUrl: `https://console.firebase.google.com/project/${projectId}/authentication/settings`
+  };
 }
 
 // Sign out helper
